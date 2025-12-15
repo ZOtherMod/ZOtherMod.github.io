@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Panel - Debate Platform</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="config.js"></script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Admin Panel</h1>
+            <div class="user-info">
+                <span id="usernameDisplay">Admin User</span>
+                <button id="returnToMatchmakingButton" class="secondary-button">Return to Matchmaking</button>
+                <button id="logoutButton" class="secondary-button">Logout</button>
+            </div>
+        </header>
+        
+        <main>
+            <div class="admin-container">
+                <div class="admin-section">
+                    <h2>Database Management</h2>
+                    <div class="admin-tabs">
+                        <button id="usersTab" class="tab-button active">Users</button>
+                        <button id="debatesTab" class="tab-button">Debates</button>
+                        <button id="topicsTab" class="tab-button">Topics</button>
+                    </div>
+                    
+                    <!-- Users Table -->
+                    <div id="usersSection" class="admin-tab-content active">
+                        <div class="table-controls">
+                            <h3>Users Management</h3>
+                            <button id="refreshUsersButton" class="primary-button">Refresh</button>
+                            <button id="addUserButton" class="success-button">Add User</button>
+                        </div>
+                        <div class="table-container">
+                            <table id="usersTable" class="admin-table">
+                                <thead>
+                                    <tr>
+                                        <th>ID</th>
+                                        <th>Username</th>
+                                        <th>MMR</th>
+                                        <th>User Class</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="usersTableBody">
+                                    <tr>
+                                        <td colspan="5" class="loading">Loading users...</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    
+                    <!-- Debates Table -->
+                    <div id="debatesSection" class="admin-tab-content">
+                        <div class="table-controls">
+                            <h3>Debates History</h3>
+                            <button id="refreshDebatesButton" class="primary-button">Refresh</button>
+                        </div>
+                        <div class="table-container">
+                            <table id="debatesTable" class="admin-table">
+                                <thead>
+                                    <tr>
+                                        <th>ID</th>
+                                        <th>User 1</th>
+                                        <th>User 2</th>
+                                        <th>Topic</th>
+                                        <th>Winner</th>
+                                        <th>Timestamp</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="debatesTableBody">
+                                    <tr>
+                                        <td colspan="7" class="loading">Loading debates...</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    
+                    <!-- Topics Table -->
+                    <div id="topicsSection" class="admin-tab-content">
+                        <div class="table-controls">
+                            <h3>Debate Topics</h3>
+                            <button id="refreshTopicsButton" class="primary-button">Refresh</button>
+                            <button id="addTopicButton" class="success-button">Add Topic</button>
+                        </div>
+                        <div class="table-container">
+                            <table id="topicsTable" class="admin-table">
+                                <thead>
+                                    <tr>
+                                        <th>ID</th>
+                                        <th>Topic Text</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="topicsTableBody">
+                                    <tr>
+                                        <td colspan="3" class="loading">Loading topics...</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Modal for editing -->
+            <div id="editModal" class="modal hidden">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h3 id="modalTitle">Edit Item</h3>
+                        <button id="closeModalButton" class="close-button">&times;</button>
+                    </div>
+                    <div class="modal-body">
+                        <form id="editForm">
+                            <div id="formFields"></div>
+                            <div class="form-actions">
+                                <button type="button" id="cancelEditButton" class="secondary-button">Cancel</button>
+                                <button type="submit" class="primary-button">Save Changes</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+            
+            <div id="messageContainer" class="message-container hidden">
+                <div id="messageText" class="message"></div>
+            </div>
+            
+            <div id="connectionStatus" class="connection-status">
+                <span id="connectionIndicator" class="status-indicator offline">●</span>
+                <span id="connectionText">Connecting...</span>
+            </div>
+        </main>
+        
+        <footer>
+            <p>Admin Panel - Debate Platform Management</p>
+        </footer>
+    </div>
+    
+    <script src="script.js"></script>
+    <script>
+        // Initialize admin page
+        document.addEventListener('DOMContentLoaded', () => {
+            initializeAdminPage();
+        });
+    </script>
+</body>
+</html>

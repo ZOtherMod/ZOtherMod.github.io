@@ -90,6 +90,18 @@ function handleWebSocketMessage(event) {
             case 'error':
                 showMessage(data.message, 'error');
                 break;
+            case 'admin_data_response':
+                handleAdminDataResponse(data);
+                break;
+            case 'admin_item_response':
+                handleAdminItemResponse(data);
+                break;
+            case 'admin_update_response':
+                handleAdminUpdateResponse(data);
+                break;
+            case 'admin_delete_response':
+                handleAdminDeleteResponse(data);
+                break;
             case 'pong':
 
                 break;
@@ -332,6 +344,18 @@ function initializeMatchmakingPage() {
     
     connectWebSocket();
     
+    // Show admin button if user has admin privileges
+    const adminBtn = document.getElementById('adminButton');
+    if (adminBtn) {
+        if (appState.currentUser.user_class > 0) {
+            showElement('adminButton');
+            adminBtn.addEventListener('click', () => {
+                window.location.href = 'admin.html';
+            });
+        } else {
+            hideElement('adminButton');
+        }
+    }
 
     const logoutBtn = document.getElementById('logoutButton');
     if (logoutBtn) {
@@ -416,7 +440,12 @@ function handleMatchFound(data) {
     setElementText('opponentMMR', data.opponent.mmr);
     setElementText('debateTopic', data.topic);
     
-    showMessage('Match found!', 'success');
+    showMessage('Match found! Entering debate room in 3 seconds...', 'success');
+    
+    // Auto-transition to debate room after 3 seconds
+    setTimeout(() => {
+        proceedToDebate();
+    }, 3000);
 }
 
 function proceedToDebate() {
@@ -447,8 +476,8 @@ function initializeDebatePage() {
     
     // Start the debate session once connected
     setTimeout(() => {
-        if (appState.ws && appState.ws.readyState === WebSocket.OPEN) {
-            sendMessage({
+        if (appState.websocket && appState.websocket.readyState === WebSocket.OPEN) {
+            sendWebSocketMessage({
                 type: 'start_debate',
                 user_id: appState.currentUser.id,
                 debate_id: appState.currentDebate.id
@@ -802,6 +831,414 @@ function downloadDebateLog() {
     window.URL.revokeObjectURL(url);
     
     showMessage('Debate log downloaded', 'success');
+}
+
+// Admin Panel Functions
+function initializeAdminPage() {
+    // Check authentication and admin privileges
+    const userData = localStorage.getItem('debateUser');
+    if (!userData) {
+        window.location.href = 'login.html';
+        return;
+    }
+    
+    appState.currentUser = JSON.parse(userData);
+    
+    // Check admin privileges
+    if (appState.currentUser.user_class <= 0) {
+        showMessage('Access denied. Admin privileges required.', 'error');
+        setTimeout(() => {
+            window.location.href = 'matchmaking.html';
+        }, 2000);
+        return;
+    }
+    
+    // Set up user display
+    setElementText('usernameDisplay', `Admin: ${appState.currentUser.username}`);
+    
+    // Connect to WebSocket
+    connectWebSocket();
+    
+    // Set up event handlers
+    setupAdminEventHandlers();
+    
+    // Initialize with users tab
+    switchAdminTab('users');
+}
+
+function setupAdminEventHandlers() {
+    // Tab switching
+    const usersTab = document.getElementById('usersTab');
+    const debatesTab = document.getElementById('debatesTab');
+    const topicsTab = document.getElementById('topicsTab');
+    
+    if (usersTab) usersTab.addEventListener('click', () => switchAdminTab('users'));
+    if (debatesTab) debatesTab.addEventListener('click', () => switchAdminTab('debates'));
+    if (topicsTab) topicsTab.addEventListener('click', () => switchAdminTab('topics'));
+    
+    // Refresh buttons
+    const refreshUsersBtn = document.getElementById('refreshUsersButton');
+    const refreshDebatesBtn = document.getElementById('refreshDebatesButton');
+    const refreshTopicsBtn = document.getElementById('refreshTopicsButton');
+    
+    if (refreshUsersBtn) refreshUsersBtn.addEventListener('click', () => loadAdminData('users'));
+    if (refreshDebatesBtn) refreshDebatesBtn.addEventListener('click', () => loadAdminData('debates'));
+    if (refreshTopicsBtn) refreshTopicsBtn.addEventListener('click', () => loadAdminData('topics'));
+    
+    // Navigation buttons
+    const returnBtn = document.getElementById('returnToMatchmakingButton');
+    const logoutBtn = document.getElementById('logoutButton');
+    
+    if (returnBtn) {
+        returnBtn.addEventListener('click', () => {
+            window.location.href = 'matchmaking.html';
+        });
+    }
+    
+    if (logoutBtn) {
+        logoutBtn.addEventListener('click', handleLogout);
+    }
+    
+    // Modal handling
+    const closeModalBtn = document.getElementById('closeModalButton');
+    const cancelEditBtn = document.getElementById('cancelEditButton');
+    const editForm = document.getElementById('editForm');
+    
+    if (closeModalBtn) closeModalBtn.addEventListener('click', hideEditModal);
+    if (cancelEditBtn) cancelEditBtn.addEventListener('click', hideEditModal);
+    if (editForm) editForm.addEventListener('submit', handleEditSubmit);
+}
+
+function switchAdminTab(tab) {
+    // Remove active class from all tabs and sections
+    document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
+    document.querySelectorAll('.admin-tab-content').forEach(section => section.classList.remove('active'));
+    
+    // Add active class to selected tab and section
+    const tabButton = document.getElementById(`${tab}Tab`);
+    const tabSection = document.getElementById(`${tab}Section`);
+    
+    if (tabButton) tabButton.classList.add('active');
+    if (tabSection) tabSection.classList.add('active');
+    
+    // Load data for the selected tab
+    loadAdminData(tab);
+}
+
+function loadAdminData(type) {
+    if (!appState.websocket || appState.websocket.readyState !== WebSocket.OPEN) {
+        showMessage('WebSocket connection required', 'error');
+        return;
+    }
+    
+    sendWebSocketMessage({
+        type: 'admin_get_data',
+        data_type: type,
+        user_id: appState.currentUser.id
+    });
+}
+
+function displayAdminData(type, data) {
+    switch(type) {
+        case 'users':
+            displayUsersTable(data);
+            break;
+        case 'debates':
+            displayDebatesTable(data);
+            break;
+        case 'topics':
+            displayTopicsTable(data);
+            break;
+    }
+}
+
+function displayUsersTable(users) {
+    const tbody = document.getElementById('usersTableBody');
+    if (!tbody) return;
+    
+    if (!users || users.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" class="loading">No users found</td></tr>';
+        return;
+    }
+    
+    tbody.innerHTML = users.map(user => `
+        <tr>
+            <td>${user.id}</td>
+            <td>${user.username}</td>
+            <td>${user.mmr}</td>
+            <td>${user.user_class}</td>
+            <td>
+                <button class="action-button edit" onclick="editUser(${user.id})">Edit</button>
+                <button class="action-button delete" onclick="deleteUser(${user.id})">Delete</button>
+            </td>
+        </tr>
+    `).join('');
+}
+
+function displayDebatesTable(debates) {
+    const tbody = document.getElementById('debatesTableBody');
+    if (!tbody) return;
+    
+    if (!debates || debates.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" class="loading">No debates found</td></tr>';
+        return;
+    }
+    
+    tbody.innerHTML = debates.map(debate => `
+        <tr>
+            <td>${debate.id}</td>
+            <td>${debate.user1_name || debate.user1_id}</td>
+            <td>${debate.user2_name || debate.user2_id}</td>
+            <td>${debate.topic.substring(0, 50)}${debate.topic.length > 50 ? '...' : ''}</td>
+            <td>${debate.winner_name || debate.winner || 'N/A'}</td>
+            <td>${new Date(debate.timestamp).toLocaleString()}</td>
+            <td>
+                <button class="action-button edit" onclick="viewDebate(${debate.id})">View</button>
+                <button class="action-button delete" onclick="deleteDebate(${debate.id})">Delete</button>
+            </td>
+        </tr>
+    `).join('');
+}
+
+function displayTopicsTable(topics) {
+    const tbody = document.getElementById('topicsTableBody');
+    if (!tbody) return;
+    
+    if (!topics || topics.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="3" class="loading">No topics found</td></tr>';
+        return;
+    }
+    
+    tbody.innerHTML = topics.map(topic => `
+        <tr>
+            <td>${topic.id}</td>
+            <td>${topic.topic_text}</td>
+            <td>
+                <button class="action-button edit" onclick="editTopic(${topic.id})">Edit</button>
+                <button class="action-button delete" onclick="deleteTopic(${topic.id})">Delete</button>
+            </td>
+        </tr>
+    `).join('');
+}
+
+function editUser(userId) {
+    sendWebSocketMessage({
+        type: 'admin_get_item',
+        data_type: 'user',
+        item_id: userId,
+        user_id: appState.currentUser.id
+    });
+}
+
+function deleteUser(userId) {
+    if (confirm('Are you sure you want to delete this user? This action cannot be undone.')) {
+        sendWebSocketMessage({
+            type: 'admin_delete_item',
+            data_type: 'user',
+            item_id: userId,
+            user_id: appState.currentUser.id
+        });
+    }
+}
+
+function editTopic(topicId) {
+    sendWebSocketMessage({
+        type: 'admin_get_item',
+        data_type: 'topic',
+        item_id: topicId,
+        user_id: appState.currentUser.id
+    });
+}
+
+function deleteTopic(topicId) {
+    if (confirm('Are you sure you want to delete this topic?')) {
+        sendWebSocketMessage({
+            type: 'admin_delete_item',
+            data_type: 'topic',
+            item_id: topicId,
+            user_id: appState.currentUser.id
+        });
+    }
+}
+
+function viewDebate(debateId) {
+    sendWebSocketMessage({
+        type: 'admin_get_item',
+        data_type: 'debate',
+        item_id: debateId,
+        user_id: appState.currentUser.id
+    });
+}
+
+function deleteDebate(debateId) {
+    if (confirm('Are you sure you want to delete this debate record?')) {
+        sendWebSocketMessage({
+            type: 'admin_delete_item',
+            data_type: 'debate',
+            item_id: debateId,
+            user_id: appState.currentUser.id
+        });
+    }
+}
+
+function showEditModal(type, item) {
+    const modal = document.getElementById('editModal');
+    const modalTitle = document.getElementById('modalTitle');
+    const formFields = document.getElementById('formFields');
+    
+    if (!modal || !modalTitle || !formFields) return;
+    
+    // Set title
+    modalTitle.textContent = `Edit ${type.charAt(0).toUpperCase() + type.slice(1)}`;
+    
+    // Clear and populate form fields
+    formFields.innerHTML = '';
+    
+    switch(type) {
+        case 'user':
+            formFields.innerHTML = `
+                <div class="form-field">
+                    <label for="editUsername">Username:</label>
+                    <input type="text" id="editUsername" value="${item.username}" required>
+                </div>
+                <div class="form-field">
+                    <label for="editMMR">MMR:</label>
+                    <input type="number" id="editMMR" value="${item.mmr}" required>
+                </div>
+                <div class="form-field">
+                    <label for="editUserClass">User Class:</label>
+                    <input type="number" id="editUserClass" value="${item.user_class}" required>
+                </div>
+                <input type="hidden" id="editItemId" value="${item.id}">
+                <input type="hidden" id="editItemType" value="user">
+            `;
+            break;
+        case 'topic':
+            formFields.innerHTML = `
+                <div class="form-field">
+                    <label for="editTopicText">Topic Text:</label>
+                    <textarea id="editTopicText" rows="4" required>${item.topic_text}</textarea>
+                </div>
+                <input type="hidden" id="editItemId" value="${item.id}">
+                <input type="hidden" id="editItemType" value="topic">
+            `;
+            break;
+        case 'debate':
+            formFields.innerHTML = `
+                <div class="form-field">
+                    <label>Debate ID:</label>
+                    <input type="text" value="${item.id}" disabled>
+                </div>
+                <div class="form-field">
+                    <label>Topic:</label>
+                    <textarea rows="3" disabled>${item.topic}</textarea>
+                </div>
+                <div class="form-field">
+                    <label>Log:</label>
+                    <textarea rows="10" disabled>${item.log}</textarea>
+                </div>
+                <div class="form-field">
+                    <label>Winner:</label>
+                    <input type="text" value="${item.winner_name || item.winner || 'N/A'}" disabled>
+                </div>
+                <div class="form-field">
+                    <label>Timestamp:</label>
+                    <input type="text" value="${new Date(item.timestamp).toLocaleString()}" disabled>
+                </div>
+            `;
+            // Hide save button for read-only debate view
+            const saveBtn = modal.querySelector('button[type="submit"]');
+            if (saveBtn) saveBtn.style.display = 'none';
+            break;
+    }
+    
+    // Show modal
+    modal.classList.remove('hidden');
+    modal.classList.add('active');
+}
+
+function hideEditModal() {
+    const modal = document.getElementById('editModal');
+    if (modal) {
+        modal.classList.add('hidden');
+        modal.classList.remove('active');
+    }
+}
+
+function handleEditSubmit(e) {
+    e.preventDefault();
+    
+    const itemType = document.getElementById('editItemType')?.value;
+    const itemId = document.getElementById('editItemId')?.value;
+    
+    if (!itemType || !itemId) return;
+    
+    let updateData = { id: itemId };
+    
+    switch(itemType) {
+        case 'user':
+            updateData.username = document.getElementById('editUsername')?.value;
+            updateData.mmr = parseInt(document.getElementById('editMMR')?.value);
+            updateData.user_class = parseInt(document.getElementById('editUserClass')?.value);
+            break;
+        case 'topic':
+            updateData.topic_text = document.getElementById('editTopicText')?.value;
+            break;
+    }
+    
+    sendWebSocketMessage({
+        type: 'admin_update_item',
+        data_type: itemType,
+        item_data: updateData,
+        user_id: appState.currentUser.id
+    });
+    
+    hideEditModal();
+}
+
+// Admin WebSocket message handlers
+function handleAdminDataResponse(data) {
+    if (data.success) {
+        displayAdminData(data.data_type, data.data);
+    } else {
+        showMessage(data.error || 'Failed to load data', 'error');
+    }
+}
+
+function handleAdminItemResponse(data) {
+    if (data.success) {
+        showEditModal(data.data_type, data.item);
+    } else {
+        showMessage(data.error || 'Failed to load item', 'error');
+    }
+}
+
+function handleAdminUpdateResponse(data) {
+    if (data.success) {
+        showMessage('Item updated successfully', 'success');
+        // Refresh the current tab data
+        const activeTab = document.querySelector('.tab-button.active');
+        if (activeTab) {
+            const tabType = activeTab.id.replace('Tab', '');
+            loadAdminData(tabType);
+        }
+    } else {
+        showMessage(data.error || 'Failed to update item', 'error');
+    }
+}
+
+function handleAdminDeleteResponse(data) {
+    if (data.success) {
+        showMessage('Item deleted successfully', 'success');
+        // Refresh the current tab data
+        const activeTab = document.querySelector('.tab-button.active');
+        if (activeTab) {
+            const tabType = activeTab.id.replace('Tab', '');
+            loadAdminData(tabType);
+        }
+    } else {
+        showMessage(data.error || 'Failed to delete item', 'error');
+    }
 }
 
 // Initialize based on page

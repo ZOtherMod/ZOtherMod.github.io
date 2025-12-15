@@ -159,6 +159,18 @@ class WebSocketHandler:
         elif message_type == 'start_debate':
             return await self.handle_start_debate(data)
         
+        elif message_type == 'admin_get_data':
+            return await self.handle_admin_get_data(data)
+        
+        elif message_type == 'admin_get_item':
+            return await self.handle_admin_get_item(data)
+        
+        elif message_type == 'admin_update_item':
+            return await self.handle_admin_update_item(data)
+        
+        elif message_type == 'admin_delete_item':
+            return await self.handle_admin_delete_item(data)
+        
         elif message_type == 'ping':
             return {'type': 'pong', 'timestamp': data.get('timestamp')}
         
@@ -379,4 +391,197 @@ class WebSocketHandler:
                 'type': 'start_debate_response',
                 'success': False,
                 'error': 'Failed to start debate session'
+            }
+    
+    async def handle_admin_get_data(self, data: dict) -> dict:
+        """Handle admin request to get data"""
+        user_id = data.get('user_id')
+        data_type = data.get('data_type')
+        
+        # Check admin privileges
+        user_info = self.database.get_user_by_id(user_id)
+        if not user_info or user_info['user_class'] <= 0:
+            return {
+                'type': 'admin_data_response',
+                'success': False,
+                'error': 'Admin privileges required'
+            }
+        
+        try:
+            if data_type == 'users':
+                users = self.database.get_all_users()
+                return {
+                    'type': 'admin_data_response',
+                    'success': True,
+                    'data_type': 'users',
+                    'data': users
+                }
+            elif data_type == 'debates':
+                debates = self.database.get_all_debates()
+                return {
+                    'type': 'admin_data_response',
+                    'success': True,
+                    'data_type': 'debates',
+                    'data': debates
+                }
+            elif data_type == 'topics':
+                topics = self.database.get_all_topics()
+                return {
+                    'type': 'admin_data_response',
+                    'success': True,
+                    'data_type': 'topics',
+                    'data': topics
+                }
+            else:
+                return {
+                    'type': 'admin_data_response',
+                    'success': False,
+                    'error': 'Invalid data type'
+                }
+        except Exception as e:
+            print(f"Error getting admin data: {e}")
+            return {
+                'type': 'admin_data_response',
+                'success': False,
+                'error': 'Failed to retrieve data'
+            }
+    
+    async def handle_admin_get_item(self, data: dict) -> dict:
+        """Handle admin request to get specific item"""
+        user_id = data.get('user_id')
+        data_type = data.get('data_type')
+        item_id = data.get('item_id')
+        
+        # Check admin privileges
+        user_info = self.database.get_user_by_id(user_id)
+        if not user_info or user_info['user_class'] <= 0:
+            return {
+                'type': 'admin_item_response',
+                'success': False,
+                'error': 'Admin privileges required'
+            }
+        
+        try:
+            if data_type == 'user':
+                item = self.database.get_user_by_id(item_id)
+            elif data_type == 'debate':
+                item = self.database.get_debate_by_id(item_id)
+            elif data_type == 'topic':
+                item = self.database.get_topic_by_id(item_id)
+            else:
+                return {
+                    'type': 'admin_item_response',
+                    'success': False,
+                    'error': 'Invalid data type'
+                }
+            
+            if item:
+                return {
+                    'type': 'admin_item_response',
+                    'success': True,
+                    'data_type': data_type,
+                    'item': item
+                }
+            else:
+                return {
+                    'type': 'admin_item_response',
+                    'success': False,
+                    'error': 'Item not found'
+                }
+        except Exception as e:
+            print(f"Error getting admin item: {e}")
+            return {
+                'type': 'admin_item_response',
+                'success': False,
+                'error': 'Failed to retrieve item'
+            }
+    
+    async def handle_admin_update_item(self, data: dict) -> dict:
+        """Handle admin request to update item"""
+        user_id = data.get('user_id')
+        data_type = data.get('data_type')
+        item_data = data.get('item_data')
+        
+        # Check admin privileges
+        user_info = self.database.get_user_by_id(user_id)
+        if not user_info or user_info['user_class'] <= 0:
+            return {
+                'type': 'admin_update_response',
+                'success': False,
+                'error': 'Admin privileges required'
+            }
+        
+        try:
+            if data_type == 'user':
+                success = self.database.update_user_admin(
+                    item_data['id'],
+                    item_data.get('username'),
+                    item_data.get('mmr'),
+                    item_data.get('user_class')
+                )
+            elif data_type == 'topic':
+                success = self.database.update_topic(
+                    item_data['id'],
+                    item_data.get('topic_text')
+                )
+            else:
+                return {
+                    'type': 'admin_update_response',
+                    'success': False,
+                    'error': 'Invalid data type or read-only'
+                }
+            
+            return {
+                'type': 'admin_update_response',
+                'success': success,
+                'error': None if success else 'Failed to update item'
+            }
+        except Exception as e:
+            print(f"Error updating admin item: {e}")
+            return {
+                'type': 'admin_update_response',
+                'success': False,
+                'error': 'Failed to update item'
+            }
+    
+    async def handle_admin_delete_item(self, data: dict) -> dict:
+        """Handle admin request to delete item"""
+        user_id = data.get('user_id')
+        data_type = data.get('data_type')
+        item_id = data.get('item_id')
+        
+        # Check admin privileges
+        user_info = self.database.get_user_by_id(user_id)
+        if not user_info or user_info['user_class'] <= 0:
+            return {
+                'type': 'admin_delete_response',
+                'success': False,
+                'error': 'Admin privileges required'
+            }
+        
+        try:
+            if data_type == 'user':
+                success = self.database.delete_user(item_id)
+            elif data_type == 'debate':
+                success = self.database.delete_debate(item_id)
+            elif data_type == 'topic':
+                success = self.database.delete_topic(item_id)
+            else:
+                return {
+                    'type': 'admin_delete_response',
+                    'success': False,
+                    'error': 'Invalid data type'
+                }
+            
+            return {
+                'type': 'admin_delete_response',
+                'success': success,
+                'error': None if success else 'Failed to delete item'
+            }
+        except Exception as e:
+            print(f"Error deleting admin item: {e}")
+            return {
+                'type': 'admin_delete_response',
+                'success': False,
+                'error': 'Failed to delete item'
             }
