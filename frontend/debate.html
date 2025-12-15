@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debate Platform - Debate Session</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="config.js"></script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Online Debate Platform</h1>
+            <div class="user-info">
+                <span id="usernameDisplay">User</span>
+                <span id="debatePhase" class="debate-phase">Preparation</span>
+            </div>
+        </header>
+        
+        <main>
+            <div class="debate-container">
+                <!-- Topic Section -->
+                <div class="topic-section">
+                    <h2>Debate Topic</h2>
+                    <div id="topicText" class="topic-text">
+                        Loading topic...
+                    </div>
+                </div>
+                
+                <!-- Timer Section -->
+                <div class="timer-section">
+                    <div id="timerContainer" class="timer-container">
+                        <div id="timerLabel" class="timer-label">Preparation Time</div>
+                        <div id="timerDisplay" class="timer-display">00:00</div>
+                        <div id="timerProgress" class="timer-progress">
+                            <div id="timerBar" class="timer-bar"></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Opponent Info -->
+                <div class="opponent-section">
+                    <h3>Opponent</h3>
+                    <div id="opponentInfo" class="opponent-info">
+                        <span id="opponentUsername">Unknown</span>
+                        <span id="opponentMMR" class="mmr">MMR: Unknown</span>
+                    </div>
+                </div>
+                
+                <!-- Side Assignment -->
+                <div class="sides-section">
+                    <h3>Debate Positions</h3>
+                    <div class="sides-info">
+                        <div class="side-item">
+                            <span class="side-label">Your Side:</span>
+                            <span id="yourSide" class="side-value">Not Assigned</span>
+                        </div>
+                        <div class="side-item">
+                            <span class="side-label">Opponent Side:</span>
+                            <span id="opponentSide" class="side-value">Not Assigned</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Debate Log -->
+                <div class="debate-log-section">
+                    <h3>Debate Log</h3>
+                    <div id="debateLog" class="debate-log">
+                        <div class="log-message system">
+                            <div class="message-content">
+                                Debate will begin after preparation time.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Input Section -->
+                <div class="input-section" id="inputSection">
+                    <div id="turnStatus" class="turn-status">
+                        Preparation phase - get ready for the debate!
+                    </div>
+                    
+                    <div id="argumentInputContainer" class="argument-input-container hidden">
+                        <div class="input-header">
+                            <span id="inputLabel">Your Argument</span>
+                            <span id="characterCount" class="character-count">0/1000</span>
+                        </div>
+                        <textarea 
+                            id="argumentInput" 
+                            placeholder="Enter your argument here... (max 1000 characters)"
+                            maxlength="1000"
+                            rows="4"
+                        ></textarea>
+                        <div class="input-controls">
+                            <button id="submitArgumentButton" class="primary-button" disabled>
+                                Submit Argument
+                            </button>
+                            <button id="clearArgumentButton" class="secondary-button">
+                                Clear
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div id="waitingMessage" class="waiting-message hidden">
+                        Waiting for opponent's argument...
+                    </div>
+                </div>
+            </div>
+            
+            <div id="messageContainer" class="message-container hidden">
+                <div id="messageText" class="message"></div>
+            </div>
+            
+            <div id="connectionStatus" class="connection-status">
+                <span id="connectionIndicator" class="status-indicator offline">●</span>
+                <span id="connectionText">Connecting...</span>
+            </div>
+        </main>
+        
+        <footer>
+            <p>Simple debate platform - No judges, just discussion</p>
+        </footer>
+    </div>
+    
+    <script src="script.js"></script>
+    <script>
+        // Initialize debate page
+        document.addEventListener('DOMContentLoaded', () => {
+            initializeDebatePage();
+        });
+    </script>
+</body>
+</html>

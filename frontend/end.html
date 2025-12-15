@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debate Platform - Debate Finished</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="config.js"></script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Online Debate Platform</h1>
+            <div class="user-info">
+                <span id="usernameDisplay">User</span>
+            </div>
+        </header>
+        
+        <main>
+            <div class="end-container">
+                <div class="end-header">
+                    <h2>Debate Finished</h2>
+                    <p class="end-message">
+                        Thank you for participating in this debate session!
+                    </p>
+                </div>
+                
+                <!-- Topic Section -->
+                <div class="topic-section">
+                    <h3>Debate Topic</h3>
+                    <div id="finalTopic" class="topic-text">
+                        Loading topic...
+                    </div>
+                </div>
+                
+                <!-- Participants -->
+                <div class="participants-section">
+                    <h3>Participants</h3>
+                    <div class="participants-info">
+                        <div class="participant">
+                            <span id="participant1" class="participant-name">User 1</span>
+                        </div>
+                        <div class="vs">vs</div>
+                        <div class="participant">
+                            <span id="participant2" class="participant-name">User 2</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Final Debate Log -->
+                <div class="final-log-section">
+                    <h3>Complete Debate Log</h3>
+                    <div id="finalDebateLog" class="final-debate-log">
+                        <div class="log-message system">
+                            <div class="message-content">
+                                Loading debate history...
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Statistics -->
+                <div class="statistics-section">
+                    <h3>Debate Statistics</h3>
+                    <div class="stats-grid">
+                        <div class="stat-item">
+                            <span class="stat-label">Total Arguments:</span>
+                            <span id="totalArguments" class="stat-value">0</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Debate Duration:</span>
+                            <span id="debateDuration" class="stat-value">Unknown</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Your Arguments:</span>
+                            <span id="userArguments" class="stat-value">0</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Opponent Arguments:</span>
+                            <span id="opponentArguments" class="stat-value">0</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Actions -->
+                <div class="end-actions">
+                    <button id="returnToLobbyButton" class="primary-button">
+                        Return to Lobby
+                    </button>
+                    <button id="downloadLogButton" class="secondary-button">
+                        Download Debate Log
+                    </button>
+                </div>
+                
+                <!-- Feedback -->
+                <div class="feedback-section">
+                    <h3>Feedback</h3>
+                    <p class="feedback-text">
+                        This platform focuses on structured discussion rather than winning or losing. 
+                        The goal is to practice argumentation skills and explore different perspectives 
+                        on important topics.
+                    </p>
+                    <div class="feedback-note">
+                        <em>No scoring or judging is performed - both participants gain equal experience.</em>
+                    </div>
+                </div>
+            </div>
+            
+            <div id="messageContainer" class="message-container hidden">
+                <div id="messageText" class="message"></div>
+            </div>
+        </main>
+        
+        <footer>
+            <p>Simple debate platform - No judges, just discussion</p>
+        </footer>
+    </div>
+    
+    <script src="script.js"></script>
+    <script>
+        // Initialize end page
+        document.addEventListener('DOMContentLoaded', () => {
+            initializeEndPage();
+        });
+    </script>
+</body>
+</html>

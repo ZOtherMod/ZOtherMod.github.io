@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debate Platform - Matchmaking</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="config.js"></script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Online Debate Platform</h1>
+            <div class="user-info">
+                <span id="usernameDisplay">Welcome, User</span>
+                <span id="mmrDisplay">MMR: 1000</span>
+                <button id="logoutButton" class="secondary-button">Logout</button>
+            </div>
+        </header>
+        
+        <main>
+            <div class="matchmaking-container">
+                <div class="matchmaking-section">
+                    <h2>Find a Debate</h2>
+                    <p class="description">
+                        Join the matchmaking queue to find an opponent with similar skill level.
+                    </p>
+                    
+                    <div id="matchmakingControls" class="controls">
+                        <button id="startMatchmakingButton" class="primary-button">
+                            Start Matchmaking
+                        </button>
+                        <button id="stopMatchmakingButton" class="danger-button hidden">
+                            Stop Matchmaking
+                        </button>
+                    </div>
+                    
+                    <div id="statusContainer" class="status-container hidden">
+                        <div id="statusText" class="status-text">
+                            Searching for opponent...
+                        </div>
+                        <div id="queueStatus" class="queue-status"></div>
+                        <div class="loading-dots">
+                            <span></span><span></span><span></span>
+                        </div>
+                    </div>
+                    
+                    <div id="matchFoundContainer" class="match-found-container hidden">
+                        <h3>Match Found!</h3>
+                        <div id="opponentInfo" class="opponent-info">
+                            <p><strong>Opponent:</strong> <span id="opponentUsername">Unknown</span></p>
+                            <p><strong>MMR:</strong> <span id="opponentMMR">Unknown</span></p>
+                        </div>
+                        <div id="topicInfo" class="topic-info">
+                            <p><strong>Debate Topic:</strong></p>
+                            <div id="debateTopic" class="debate-topic">Loading topic...</div>
+                        </div>
+                        <div class="match-actions">
+                            <button id="proceedToDebateButton" class="primary-button">
+                                Proceed to Debate
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="info-section">
+                    <h3>How Matchmaking Works</h3>
+                    <ul>
+                        <li>Players are matched based on similar MMR (skill level)</li>
+                        <li>The longer you wait, the wider the MMR range becomes</li>
+                        <li>A random debate topic will be selected for your match</li>
+                        <li>You'll have preparation time before the debate begins</li>
+                    </ul>
+                </div>
+            </div>
+            
+            <div id="messageContainer" class="message-container hidden">
+                <div id="messageText" class="message"></div>
+            </div>
+            
+            <div id="connectionStatus" class="connection-status">
+                <span id="connectionIndicator" class="status-indicator offline">●</span>
+                <span id="connectionText">Connecting...</span>
+            </div>
+        </main>
+        
+        <footer>
+            <p>Simple debate platform - No judges, just discussion</p>
+        </footer>
+    </div>
+    
+    <script src="script.js"></script>
+    <script>
+        // Initialize matchmaking page
+        document.addEventListener('DOMContentLoaded', () => {
+            initializeMatchmakingPage();
+        });
+    </script>
+</body>
+</html>

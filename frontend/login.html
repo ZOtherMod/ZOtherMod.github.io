@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debate Platform - Login</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="config.js"></script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Online Debate Platform</h1>
+        </header>
+        
+        <main>
+            <div class="auth-container">
+                <div class="auth-form" id="loginForm">
+                    <h2>Login</h2>
+                    <form id="loginFormElement">
+                        <div class="form-group">
+                            <label for="loginUsername">Username:</label>
+                            <input type="text" id="loginUsername" required minlength="3">
+                        </div>
+                        <div class="form-group">
+                            <label for="loginPassword">Password:</label>
+                            <input type="password" id="loginPassword" required minlength="6">
+                        </div>
+                        <button type="submit">Login</button>
+                    </form>
+                    <p class="switch-form">
+                        Don't have an account? 
+                        <a href="#" id="showCreateAccount">Create Account</a>
+                    </p>
+                    <div style="margin-top: 1rem; text-align: center; padding-top: 1rem; border-top: 1px solid #ddd;">
+                        <button type="button" onclick="window.location.href='../index.html'" class="test-react-btn">
+                            🧪 Test React App
+                        </button>
+                        <small style="display: block; margin-top: 0.5rem; color: #666;">
+                            Click to test the React application
+                        </small>
+                    </div>
+                </div>
+                
+                <div class="auth-form hidden" id="createAccountForm">
+                    <h2>Create Account</h2>
+                    <form id="createAccountFormElement">
+                        <div class="form-group">
+                            <label for="createUsername">Username:</label>
+                            <input type="text" id="createUsername" required minlength="3">
+                            <small>Minimum 3 characters</small>
+                        </div>
+                        <div class="form-group">
+                            <label for="createPassword">Password:</label>
+                            <input type="password" id="createPassword" required minlength="6">
+                            <small>Minimum 6 characters</small>
+                        </div>
+                        <div class="form-group">
+                            <label for="confirmPassword">Confirm Password:</label>
+                            <input type="password" id="confirmPassword" required minlength="6">
+                        </div>
+                        <button type="submit">Create Account</button>
+                    </form>
+                    <p class="switch-form">
+                        Already have an account? 
+                        <a href="#" id="showLogin">Login</a>
+                    </p>
+                </div>
+            </div>
+            
+            <div id="messageContainer" class="message-container hidden">
+                <div id="messageText" class="message"></div>
+            </div>
+            
+            <div id="loadingContainer" class="loading-container hidden">
+                <div class="loading">Connecting...</div>
+            </div>
+        </main>
+        
+        <footer>
+            <p>Simple debate platform - No judges, just discussion</p>
+        </footer>
+    </div>
+    
+    <script src="script.js"></script>
+    <script>
+        // Initialize login page
+        document.addEventListener('DOMContentLoaded', () => {
+            initializeLoginPage();
+        });
+    </script>
+</body>
+</html>
