@@ -108,6 +108,16 @@ function setConnectionState(newState) {
 
 function connectWebSocket() {
     console.log('connectWebSocket called');
+    // If an existing socket is open or connecting, reuse it to avoid duplicates
+    if (appState.websocket) {
+        const state = appState.websocket.readyState;
+        // 0 = CONNECTING, 1 = OPEN
+        if (state === WebSocket.OPEN || state === WebSocket.CONNECTING) {
+            console.log('Existing WebSocket already open/connecting. Reusing it. readyState=', state);
+            return;
+        }
+    }
+
     setConnectionState('connecting');
     
     const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
@@ -125,8 +135,14 @@ function connectWebSocket() {
         
         appState.websocket.onopen = handleWebSocketOpen;
         appState.websocket.onmessage = handleWebSocketMessage;
-        appState.websocket.onclose = handleWebSocketClose;
-        appState.websocket.onerror = handleWebSocketError;
+        appState.websocket.onclose = function(event) {
+            console.log('WebSocket closed. code=', event.code, 'reason=', event.reason);
+            handleWebSocketClose(event);
+        };
+        appState.websocket.onerror = function(error) {
+            console.error('WebSocket encountered error:', error);
+            handleWebSocketError(error);
+        };
         
     } catch (error) {
         console.error('WebSocket connection failed:', error);
@@ -723,106 +739,20 @@ function initializeDebatePage() {
     
     if (debugManualConnectBtn) {
         debugManualConnectBtn.addEventListener('click', () => {
-            alert('Manual connect button clicked!'); // Debug
-            console.log('Manual WebSocket connection attempt...');
-            if (debugStatus) debugStatus.textContent = 'Manually connecting to ws://localhost:8765...';
-            
-            try {
-                // Force create WebSocket connection directly
-                appState.websocket = new WebSocket('ws://localhost:8765');
-                
-                appState.websocket.onopen = function() {
-                    console.log('Manual WebSocket connection opened!');
-                    if (debugStatus) {
-                        debugStatus.textContent = 'Manual connection opened, authenticating...';
-                        debugStatus.style.color = 'orange';
-                    }
-                    
-                    // Auto-authenticate with test user
-                    console.log('🔧 DEBUG: Auto-authenticating with test user');
-                    const authMessage = {
-                        type: 'authenticate',
-                        username: 'test',
-                        password: 'testpass'
-                    };
-                    appState.websocket.send(JSON.stringify(authMessage));
-                    console.log('🔧 DEBUG: Auth message sent:', authMessage);
-                };
-                
-                appState.websocket.onmessage = function(event) {
-                    console.log('Manual WebSocket received:', event.data);
-                    
-                    try {
-                        const data = JSON.parse(event.data);
-                        
-                        if (data.type === 'auth_response') {
-                            if (data.success) {
-                                console.log('✅ DEBUG: Authentication successful!', data);
-                                appState.currentUserId = data.user_id;
-                                appState.isAuthenticated = true;
-                                if (debugStatus) {
-                                    debugStatus.textContent = `Authenticated as user ID: ${data.user_id}`;
-                                    debugStatus.style.color = 'green';
-                                }
-                                
-                                // Now we can test start_debate
-                                setTimeout(() => {
-                                    console.log('🔧 DEBUG: Testing start_debate message');
-                                    const startDebateMessage = {
-                                        type: 'start_debate',
-                                        user_id: data.user_id,
-                                        debate_id: 1
-                                    };
-                                    appState.websocket.send(JSON.stringify(startDebateMessage));
-                                    console.log('🔧 DEBUG: Start debate message sent:', startDebateMessage);
-                                }, 1000);
-                            } else {
-                                console.error('❌ DEBUG: Authentication failed:', data.error);
-                                if (debugStatus) {
-                                    debugStatus.textContent = `Authentication failed: ${data.error}`;
-                                    debugStatus.style.color = 'red';
-                                }
-                            }
-                        }
-                        
-                        if (data.type === 'debate_started') {
-                            console.log('🎉 DEBUG: Received debate_started!', data);
-                            if (debugStatus) {
-                                debugStatus.textContent = `Debate started: ${data.topic}`;
-                                debugStatus.style.color = 'blue';
-                            }
-                            handleDebateStarted(data);
-                        }
-                        
-                        // Handle all other message types through normal handler
-                        handleWebSocketMessage(event);
-                        
-                    } catch (e) {
-                        console.error('❌ DEBUG: Error parsing message:', e);
-                    }
-                };
-                
-                appState.websocket.onerror = function(error) {
-                    console.error('Manual WebSocket error:', error);
-                    if (debugStatus) {
-                        debugStatus.textContent = 'Manual connection failed!';
-                        debugStatus.style.color = 'red';
-                    }
-                };
-                
-                appState.websocket.onclose = function() {
-                    console.log('Manual WebSocket connection closed');
-                    appState.isAuthenticated = false;
-                    appState.currentUserId = null;
-                };
-                
-            } catch (error) {
-                console.error('Manual WebSocket creation failed:', error);
-                if (debugStatus) {
-                    debugStatus.textContent = 'Manual connection error: ' + error.message;
-                    debugStatus.style.color = 'red';
+            console.log('Manual connect button clicked - reusing or creating connection...');
+            if (debugStatus) debugStatus.textContent = 'Manual connect triggered...';
+
+            // If a websocket exists and is OPEN, just authenticate if needed
+            if (appState.websocket && appState.websocket.readyState === WebSocket.OPEN) {
+                console.log('WebSocket already open - sending auth if not authenticated');
+                if (!appState.isAuthenticated) {
+                    authenticateTestUser();
                 }
+                return;
             }
+
+            // Otherwise, call the existing connect function which guards duplicates
+            connectWebSocket();
         });
     }
 }
