@@ -28,6 +28,26 @@
     <script src="config.js"></script>
 </head>
 <body>
+    <!-- Connection Overlay -->
+    <div id="connectionOverlay" class="connection-overlay">
+        <div class="connection-modal">
+            <div class="connection-spinner"></div>
+            <h2 id="connectionTitle">Connecting to Server...</h2>
+            <p id="connectionStatus">Please wait while we establish connection</p>
+            <div class="connection-steps">
+                <div id="step1" class="connection-step">
+                    <span class="step-text">Connecting to server</span>
+                </div>
+                <div id="step2" class="connection-step">
+                    <span class="step-text">Authenticating user</span>
+                </div>
+                <div id="step3" class="connection-step">
+                    <span class="step-text">Waiting for opponent</span>
+                </div>
+            </div>
+        </div>
+    </div>
+    
     <div class="container">
         <header>
             <h1>Online Debate Platform</h1>

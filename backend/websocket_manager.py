@@ -370,6 +370,23 @@ class WebSocketHandler:
                 'error': 'You are not a participant in this debate'
             }
         
+        # Check if both users are connected (authenticated)
+        user1_connected = self.websocket_manager.is_user_connected(debate_info['user1_id'])
+        user2_connected = self.websocket_manager.is_user_connected(debate_info['user2_id'])
+        
+        print(f"User1 ({debate_info['user1_id']}) connected: {user1_connected}")
+        print(f"User2 ({debate_info['user2_id']}) connected: {user2_connected}")
+        
+        # Only proceed if the requesting user is connected
+        # The other user will connect and start pinging when ready
+        if not self.websocket_manager.is_user_connected(user_id):
+            print(f"Requesting user {user_id} is not authenticated/connected")
+            return {
+                'type': 'start_debate_response',
+                'success': False,
+                'error': 'You must be authenticated to start a debate'
+            }
+        
         # Check if debate session already exists
         existing_session = self.debate_manager.active_debates.get(debate_id)
         if existing_session:
@@ -379,7 +396,7 @@ class WebSocketHandler:
                 'message': 'Debate session already active'
             }
         
-        # Create the debate session
+        # Create the debate session (it will wait for both players to ping)
         try:
             print(f"Creating debate session for debate {debate_id}")
             await self.debate_manager.create_debate_session(

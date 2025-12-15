@@ -5,23 +5,118 @@ let appState = {
     reconnectAttempts: 0,
     maxReconnectAttempts: 5,
     reconnectDelay: 2000,
-    isConnected: false
+    isConnected: false,
+    isAuthenticated: false,
+    currentUserId: null,
+    connectionState: 'disconnected' // disconnected, connecting, connected, authenticating, authenticated, waiting_opponent, ready
 };
+
+// Connection Overlay Management
+function showConnectionOverlay() {
+    const overlay = document.getElementById('connectionOverlay');
+    if (overlay) {
+        overlay.classList.remove('hidden');
+    }
+}
+
+function hideConnectionOverlay() {
+    const overlay = document.getElementById('connectionOverlay');
+    if (overlay) {
+        overlay.classList.add('hidden');
+    }
+}
+
+function updateConnectionStep(step, state, text = null) {
+    const stepElement = document.getElementById(step);
+    if (stepElement) {
+        // Remove all state classes
+        stepElement.classList.remove('pending', 'active', 'completed', 'error');
+        // Add new state
+        stepElement.classList.add(state);
+        
+        // Update text if provided
+        if (text) {
+            const stepText = stepElement.querySelector('.step-text');
+            if (stepText) stepText.textContent = text;
+        }
+    }
+}
+
+function updateConnectionTitle(title) {
+    const titleElement = document.getElementById('connectionTitle');
+    if (titleElement) titleElement.textContent = title;
+}
+
+function updateConnectionStatus(status) {
+    const statusElement = document.getElementById('connectionStatus');
+    if (statusElement) statusElement.textContent = status;
+}
+
+function setConnectionState(newState) {
+    appState.connectionState = newState;
+    console.log('Connection state changed to:', newState);
+    
+    // Reset all steps to pending
+    updateConnectionStep('step1', 'pending');
+    updateConnectionStep('step2', 'pending');
+    updateConnectionStep('step3', 'pending');
+    
+    switch (newState) {
+        case 'disconnected':
+            showConnectionOverlay();
+            updateConnectionTitle('Connection Lost');
+            updateConnectionStatus('Attempting to reconnect...');
+            updateConnectionStep('step1', 'error');
+            break;
+            
+        case 'connecting':
+            showConnectionOverlay();
+            updateConnectionTitle('Connecting to Server...');
+            updateConnectionStatus('Establishing WebSocket connection');
+            updateConnectionStep('step1', 'active');
+            break;
+            
+        case 'connected':
+            updateConnectionStep('step1', 'completed');
+            updateConnectionStep('step2', 'active');
+            updateConnectionTitle('Authenticating...');
+            updateConnectionStatus('Verifying user credentials');
+            break;
+            
+        case 'authenticated':
+            updateConnectionStep('step1', 'completed');
+            updateConnectionStep('step2', 'completed');
+            updateConnectionStep('step3', 'active');
+            updateConnectionTitle('Waiting for Opponent...');
+            updateConnectionStatus('Looking for another player to start the debate');
+            break;
+            
+        case 'ready':
+            updateConnectionStep('step1', 'completed');
+            updateConnectionStep('step2', 'completed');
+            updateConnectionStep('step3', 'completed');
+            updateConnectionTitle('Ready to Begin!');
+            updateConnectionStatus('Both players connected. Starting debate...');
+            
+            // Hide overlay after a brief moment
+            setTimeout(() => {
+                hideConnectionOverlay();
+            }, 1500);
+            break;
+    }
+}
 
 function connectWebSocket() {
     console.log('connectWebSocket called');
-    console.log('window.CONFIG:', window.CONFIG);
+    setConnectionState('connecting');
     
     const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-    console.log('isLocalhost:', isLocalhost);
     
     let wsUrl;
     if (isLocalhost) {
         wsUrl = window.CONFIG?.LOCAL_WEBSOCKET_URL || 'ws://localhost:8765';
-        console.log('Connecting to local WebSocket:', wsUrl);
     } else {
         wsUrl = window.CONFIG?.WEBSOCKET_URL || 'wss://debatesite.onrender.com';
-        console.log('Connecting to production WebSocket:', wsUrl);
     }
     
     try {
@@ -33,17 +128,9 @@ function connectWebSocket() {
         appState.websocket.onclose = handleWebSocketClose;
         appState.websocket.onerror = handleWebSocketError;
         
-        updateConnectionStatus('Connecting...');
     } catch (error) {
         console.error('WebSocket connection failed:', error);
-        updateConnectionStatus('Connection failed: ' + error.message);
-        
-        // Also show in debug status if available
-        const debugStatus = document.getElementById('debugStatus');
-        if (debugStatus) {
-            debugStatus.textContent = 'WebSocket error: ' + error.message;
-            debugStatus.style.color = 'red';
-        }
+        setConnectionState('disconnected');
     }
 }
 
@@ -51,7 +138,12 @@ function handleWebSocketOpen() {
     console.log('WebSocket connected successfully');
     appState.isConnected = true;
     appState.reconnectAttempts = 0;
-    updateConnectionStatus('Connected', true);
+    setConnectionState('connected');
+    
+    // Auto-authenticate with test user for debugging
+    setTimeout(() => {
+        authenticateTestUser();
+    }, 500);
 }
 
 function handleWebSocketMessage(event) {
@@ -238,19 +330,56 @@ function handleAuthResponse(data) {
             mmr: data.mmr,
             user_class: data.user_class || 0
         };
-        
+        appState.isAuthenticated = true;
+        appState.currentUserId = data.user_id;
 
         localStorage.setItem('debateUser', JSON.stringify(appState.currentUser));
         
-        showMessage('Login successful!', 'success');
+        console.log('Authentication successful, user ID:', data.user_id);
+        setConnectionState('authenticated');
         
-
-        setTimeout(() => {
-            window.location.href = 'matchmaking.html';
-        }, 1000);
+        // If we're on the debate page, start debate process
+        if (window.location.pathname.includes('debate.html')) {
+            // Start the debate (this will trigger the ping system)
+            setTimeout(() => {
+                startDebateProcess();
+            }, 1000);
+        } else {
+            showMessage('Login successful!', 'success');
+            setTimeout(() => {
+                window.location.href = 'matchmaking.html';
+            }, 1000);
+        }
     } else {
+        console.error('Authentication failed:', data.error);
+        setConnectionState('disconnected');
         showMessage(data.error, 'error');
     }
+}
+
+function authenticateTestUser() {
+    console.log('Auto-authenticating test user...');
+    
+    sendWebSocketMessage({
+        type: 'authenticate',
+        username: 'test',
+        password: 'testpass'
+    });
+}
+
+function startDebateProcess() {
+    console.log('Starting debate process for authenticated user...');
+    
+    if (!appState.currentUserId) {
+        console.error('No current user ID available');
+        return;
+    }
+    
+    sendWebSocketMessage({
+        type: 'start_debate',
+        user_id: appState.currentUserId,
+        debate_id: 1
+    });
 }
 
 function handleAccountCreationResponse(data) {
@@ -480,52 +609,18 @@ function proceedToDebate() {
 
 
 function initializeDebatePage() {
-
-    const userData = localStorage.getItem('debateUser');
-    const debateData = localStorage.getItem('currentDebate');
+    console.log('Initializing debate page with connection overlay...');
     
-    if (!userData || !debateData) {
-        window.location.href = 'login.html';
-        return;
-    }
+    // Start with disconnected state to show overlay
+    setConnectionState('disconnected');
     
-    appState.currentUser = JSON.parse(userData);
-    appState.currentDebate = JSON.parse(debateData);
+    // Set some basic info
+    setElementText('usernameDisplay', 'User');
+    setElementText('topicText', 'Loading...');
     
-
-    setElementText('usernameDisplay', appState.currentUser.username);
-    setElementText('topicText', appState.currentDebate.topic);
-    setElementText('opponentUsername', appState.currentDebate.opponent.username);
-    setElementText('opponentMMR', `MMR: ${appState.currentDebate.opponent.mmr}`);
-    
-    console.log('Attempting to connect WebSocket...');
+    // Start connection process
+    console.log('Starting WebSocket connection...');
     connectWebSocket();
-    
-    // Start the debate session once WebSocket is connected
-    // Use interval to check connection status more reliably
-    let connectionCheckCount = 0;
-    const maxConnectionChecks = 10;
-    
-    const checkConnectionAndStart = setInterval(() => {
-        connectionCheckCount++;
-        
-        if (appState.websocket && appState.websocket.readyState === WebSocket.OPEN) {
-            clearInterval(checkConnectionAndStart);
-            console.log('WebSocket connected, starting debate session');
-            console.log('Current user:', appState.currentUser);
-            console.log('Current debate:', appState.currentDebate);
-            
-            sendWebSocketMessage({
-                type: 'start_debate',
-                user_id: appState.currentUser.id,
-                debate_id: appState.currentDebate.id
-            });
-        } else if (connectionCheckCount >= maxConnectionChecks) {
-            clearInterval(checkConnectionAndStart);
-            console.error('Failed to establish WebSocket connection for debate');
-            showMessage('Connection failed. Please refresh the page.', 'error');
-        }
-    }, 500); // Check every 500ms
     
 
     const submitBtn = document.getElementById('submitArgumentButton');
@@ -753,11 +848,10 @@ function handleDebateInitialized(data) {
         yourSide: data.your_side,
         opponentSide: data.opponent_side,
         prepTime: data.prep_time_minutes,
-        phase: 'connecting'
+        phase: 'waiting_for_opponent'
     };
     
-    // Update UI elements
-    setElementText('debatePhase', 'Connecting');
+    // Update UI elements  
     setElementText('debateTopic', data.topic);
     
     // Update side display
@@ -771,13 +865,13 @@ function handleDebateInitialized(data) {
         setElementText('opponentSide', data.opponent_side);
     }
     
-    // Show connection status
-    handleConnectionStatus(data);
+    // We're already authenticated, so we're waiting for opponent
+    setConnectionState('authenticated');
     
     // Start auto-pinging
     startAutoPing();
     
-    addSystemMessage(`Debate initialized: "${data.topic}". You are arguing for the ${data.your_side}. Connecting to opponent...`);
+    console.log(`Debate initialized: "${data.topic}". You are arguing for the ${data.your_side}. Waiting for opponent...`);
 }
 
 function handleConnectionStatus(data) {
@@ -804,13 +898,19 @@ function handleConnectionStatus(data) {
 
 function handleDebateStarted(data) {
     console.log('Debate started:', data);
-    setElementText('debatePhase', 'Preparation');
+    
+    // Both players are ready - transition to debate mode
+    setConnectionState('ready');
     
     // Store and display user's side
     if (appState.currentDebate) {
         appState.currentDebate.yourSide = data.your_side;
         appState.currentDebate.opponentSide = data.opponent_side;
+        appState.currentDebate.phase = 'preparation';
     }
+    
+    // Update UI elements
+    setElementText('debatePhase', 'Preparation');
     
     // Update side display if elements exist
     const yourSideElement = document.getElementById('yourSide');
