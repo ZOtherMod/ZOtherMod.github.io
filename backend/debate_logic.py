@@ -16,8 +16,15 @@ class DebateSession:
         self.user1_side = 'Proposition'
         self.user2_side = 'Negation'
         
+        # Connection and readiness tracking
+        self.phase = 'waiting_for_players'  # waiting_for_players, preparation, debate, ended
+        self.user1_ready = False
+        self.user2_ready = False
+        self.last_ping_user1 = None
+        self.last_ping_user2 = None
+        self.ping_timeout_seconds = 10
+        
         # Debate flow control
-        self.phase = 'preparation'  # preparation, debate, ended
         self.current_turn = user1_id  # Who's turn it is
         self.turn_count = 0
         self.max_turns = 6  # 3 turns per player
@@ -34,21 +41,117 @@ class DebateSession:
         # Timers
         self.prep_timer_task = None
         self.turn_timer_task = None
+        self.ping_check_task = None
     
     async def start_debate(self):
-        """Start the debate session"""
-        print(f"Starting debate {self.debate_id}: {self.topic}")
+        """Initialize the debate session and wait for both players to connect"""
+        print(f"Initializing debate {self.debate_id}: {self.topic}")
         print(f"User1 ({self.user1_id}) side: {self.user1_side}")
         print(f"User2 ({self.user2_id}) side: {self.user2_side}")
         
-        # Send initial topic and preparation timer with side assignments
+        # Send initial debate info to both users, but don't start timer yet
+        await self.websocket_manager.send_to_user(self.user1_id, {
+            'type': 'debate_initialized',
+            'debate_id': self.debate_id,
+            'topic': self.topic,
+            'prep_time_minutes': self.prep_time_minutes,
+            'your_side': self.user1_side,
+            'opponent_side': self.user2_side,
+            'status': 'Connecting... Please ping when ready'
+        })
+        
+        await self.websocket_manager.send_to_user(self.user2_id, {
+            'type': 'debate_initialized',
+            'debate_id': self.debate_id,
+            'topic': self.topic,
+            'prep_time_minutes': self.prep_time_minutes,
+            'your_side': self.user2_side,
+            'opponent_side': self.user1_side,
+            'status': 'Connecting... Please ping when ready'
+        })
+        
+        # Start periodic ping check
+        self.ping_check_task = asyncio.create_task(self.check_player_readiness())
+    
+    async def handle_ping_ready(self, user_id: int):
+        """Handle a ping/ready signal from a player"""
+        current_time = datetime.now()
+        
+        if user_id == self.user1_id:
+            self.user1_ready = True
+            self.last_ping_user1 = current_time
+            print(f"User1 ({user_id}) pinged ready for debate {self.debate_id}")
+        elif user_id == self.user2_id:
+            self.user2_ready = True
+            self.last_ping_user2 = current_time
+            print(f"User2 ({user_id}) pinged ready for debate {self.debate_id}")
+        else:
+            print(f"Unknown user {user_id} tried to ping debate {self.debate_id}")
+            return
+        
+        # Check if both players are ready
+        await self.check_both_players_ready()
+    
+    async def check_both_players_ready(self):
+        """Check if both players are ready and start the debate if so"""
+        if self.phase != 'waiting_for_players':
+            return
+            
+        current_time = datetime.now()
+        
+        # Check if both players have pinged recently
+        user1_connected = (self.user1_ready and 
+                          self.last_ping_user1 and 
+                          (current_time - self.last_ping_user1).total_seconds() < self.ping_timeout_seconds)
+        
+        user2_connected = (self.user2_ready and 
+                          self.last_ping_user2 and 
+                          (current_time - self.last_ping_user2).total_seconds() < self.ping_timeout_seconds)
+        
+        if user1_connected and user2_connected:
+            print(f"Both players ready for debate {self.debate_id}! Starting preparation phase...")
+            await self.both_players_connected()
+        else:
+            # Send status updates
+            if user1_connected and not user2_connected:
+                status = "Waiting for opponent..."
+                await self.websocket_manager.send_to_user(self.user1_id, {
+                    'type': 'connection_status',
+                    'status': status
+                })
+                await self.websocket_manager.send_to_user(self.user2_id, {
+                    'type': 'connection_status', 
+                    'status': 'Connecting... Please ping when ready'
+                })
+            elif user2_connected and not user1_connected:
+                status = "Waiting for opponent..."
+                await self.websocket_manager.send_to_user(self.user2_id, {
+                    'type': 'connection_status',
+                    'status': status
+                })
+                await self.websocket_manager.send_to_user(self.user1_id, {
+                    'type': 'connection_status',
+                    'status': 'Connecting... Please ping when ready'
+                })
+    
+    async def both_players_connected(self):
+        """Called when both players are connected and ready"""
+        if self.phase != 'waiting_for_players':
+            return
+            
+        # Cancel ping checking
+        if self.ping_check_task:
+            self.ping_check_task.cancel()
+            
+        # Send debate_started message with timer
         await self.websocket_manager.send_to_user(self.user1_id, {
             'type': 'debate_started',
             'debate_id': self.debate_id,
             'topic': self.topic,
             'prep_time_minutes': self.prep_time_minutes,
             'your_side': self.user1_side,
-            'opponent_side': self.user2_side
+            'opponent_side': self.user2_side,
+            'status': 'Both players connected! Starting preparation...'
         })
         
         await self.websocket_manager.send_to_user(self.user2_id, {
@@ -57,11 +160,24 @@ class DebateSession:
             'topic': self.topic,
             'prep_time_minutes': self.prep_time_minutes,
             'your_side': self.user2_side,
-            'opponent_side': self.user1_side
+            'opponent_side': self.user1_side,
+            'status': 'Both players connected! Starting preparation...'
         })
         
         # Start preparation phase
         await self.start_preparation_phase()
+    
+    async def check_player_readiness(self):
+        """Periodically check player readiness and connection status"""
+        while self.phase == 'waiting_for_players':
+            try:
+                await asyncio.sleep(2)  # Check every 2 seconds
+                await self.check_both_players_ready()
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                print(f"Error in ping check: {e}")
+                break
     
     async def start_preparation_phase(self):
         """Start the preparation timer"""

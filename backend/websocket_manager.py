@@ -174,6 +174,9 @@ class WebSocketHandler:
         elif message_type == 'ping':
             return {'type': 'pong', 'timestamp': data.get('timestamp')}
         
+        elif message_type == 'ping_ready':
+            return await self.handle_ping_ready(data)
+        
         else:
             return {
                 'type': 'error',
@@ -398,6 +401,51 @@ class WebSocketHandler:
                 'type': 'start_debate_response',
                 'success': False,
                 'error': 'Failed to start debate session'
+            }
+    
+    async def handle_ping_ready(self, data: dict) -> dict:
+        """Handle player ping ready signal"""
+        user_id = data.get('user_id')
+        debate_id = data.get('debate_id')
+        
+        if not user_id or not debate_id:
+            return {
+                'type': 'ping_ready_response',
+                'success': False,
+                'error': 'User ID and Debate ID are required'
+            }
+        
+        # Find the active debate session
+        debate_session = self.debate_manager.active_debates.get(debate_id)
+        if not debate_session:
+            return {
+                'type': 'ping_ready_response',
+                'success': False,
+                'error': 'Debate session not found'
+            }
+        
+        # Check if user is part of this debate
+        if user_id != debate_session.user1_id and user_id != debate_session.user2_id:
+            return {
+                'type': 'ping_ready_response',
+                'success': False,
+                'error': 'You are not a participant in this debate'
+            }
+        
+        # Handle the ping
+        try:
+            await debate_session.handle_ping_ready(user_id)
+            return {
+                'type': 'ping_ready_response',
+                'success': True,
+                'message': 'Ping received'
+            }
+        except Exception as e:
+            print(f"Error handling ping ready: {e}")
+            return {
+                'type': 'ping_ready_response',
+                'success': False,
+                'error': 'Failed to process ping'
             }
     
     async def handle_admin_get_data(self, data: dict) -> dict:

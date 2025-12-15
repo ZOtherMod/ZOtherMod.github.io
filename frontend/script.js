@@ -75,8 +75,14 @@ function handleWebSocketMessage(event) {
             case 'start_debate_response':
                 handleStartDebateResponse(data);
                 break;
+            case 'debate_initialized':
+                handleDebateInitialized(data);
+                break;
             case 'debate_started':
                 handleDebateStarted(data);
+                break;
+            case 'connection_status':
+                handleConnectionStatus(data);
                 break;
             case 'prep_timer_start':
             case 'prep_timer':
@@ -737,6 +743,65 @@ function handleStartDebateResponse(data) {
     }
 }
 
+function handleDebateInitialized(data) {
+    console.log('Debate initialized:', data);
+    
+    // Store debate info
+    appState.currentDebate = {
+        id: data.debate_id,
+        topic: data.topic,
+        yourSide: data.your_side,
+        opponentSide: data.opponent_side,
+        prepTime: data.prep_time_minutes,
+        phase: 'connecting'
+    };
+    
+    // Update UI elements
+    setElementText('debatePhase', 'Connecting');
+    setElementText('debateTopic', data.topic);
+    
+    // Update side display
+    const yourSideElement = document.getElementById('yourSide');
+    const opponentSideElement = document.getElementById('opponentSide');
+    
+    if (yourSideElement) {
+        setElementText('yourSide', data.your_side);
+    }
+    if (opponentSideElement) {
+        setElementText('opponentSide', data.opponent_side);
+    }
+    
+    // Show connection status
+    handleConnectionStatus(data);
+    
+    // Start auto-pinging
+    startAutoPing();
+    
+    addSystemMessage(`Debate initialized: "${data.topic}". You are arguing for the ${data.your_side}. Connecting to opponent...`);
+}
+
+function handleConnectionStatus(data) {
+    console.log('Connection status:', data);
+    
+    const statusElement = document.getElementById('turnStatus');
+    const phaseElement = document.getElementById('debatePhase');
+    
+    if (data.status) {
+        if (statusElement) {
+            setElementText('turnStatus', data.status);
+        }
+        
+        // Update phase based on status
+        if (data.status.includes('Connecting')) {
+            if (phaseElement) setElementText('debatePhase', 'Connecting');
+        } else if (data.status.includes('Waiting for opponent')) {
+            if (phaseElement) setElementText('debatePhase', 'Waiting for Opponent');
+        } else if (data.status.includes('Both players connected')) {
+            if (phaseElement) setElementText('debatePhase', 'Starting');
+        }
+    }
+}
+
 function handleDebateStarted(data) {
     console.log('Debate started:', data);
     setElementText('debatePhase', 'Preparation');
@@ -759,6 +824,49 @@ function handleDebateStarted(data) {
     }
     
     addSystemMessage(`Debate started! You are arguing for the ${data.your_side}. Preparation time begins now.`);
+    
+    // Stop auto-pinging since debate has started
+    stopAutoPing();
+}
+
+let autoPingInterval = null;
+
+function startAutoPing() {
+    // Clear any existing interval
+    stopAutoPing();
+    
+    console.log('Starting auto-ping for debate readiness');
+    
+    // Send initial ping immediately
+    sendPingReady();
+    
+    // Then ping every 3 seconds
+    autoPingInterval = setInterval(() => {
+        sendPingReady();
+    }, 3000);
+}
+
+function stopAutoPing() {
+    if (autoPingInterval) {
+        console.log('Stopping auto-ping');
+        clearInterval(autoPingInterval);
+        autoPingInterval = null;
+    }
+}
+
+function sendPingReady() {
+    if (!appState.currentDebate || !appState.currentUserId) {
+        console.log('No active debate or user ID, skipping ping');
+        return;
+    }
+    
+    console.log('Sending ping ready for debate', appState.currentDebate.id);
+    
+    sendWebSocketMessage({
+        type: 'ping_ready',
+        user_id: appState.currentUserId,
+        debate_id: appState.currentDebate.id
+    });
 }
 
 function handlePrepTimer(data) {
