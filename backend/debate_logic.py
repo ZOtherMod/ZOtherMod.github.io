@@ -38,6 +38,8 @@ class DebateSession:
     async def start_debate(self):
         """Start the debate session"""
         print(f"Starting debate {self.debate_id}: {self.topic}")
+        print(f"User1 ({self.user1_id}) side: {self.user1_side}")
+        print(f"User2 ({self.user2_id}) side: {self.user2_side}")
         
         # Send initial topic and preparation timer with side assignments
         await self.websocket_manager.send_to_user(self.user1_id, {

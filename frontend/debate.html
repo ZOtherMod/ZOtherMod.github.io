@@ -1,7 +1,27 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
+    <meta                <!-- Side Assignment -->
+                <div class="side-section">
+                    <h3>Debate Positions</h3>
+                    <div class="sides-container">
+                        <div class="side-info">
+                            <span class="side-label">Your Side:</span>
+                            <span id="yourSide" class="side-value">Not Assigned</span>
+                        </div>
+                        <div class="side-info">
+                            <span class="side-label">Opponent Side:</span>
+                            <span id="opponentSide" class="side-value">Not Assigned</span>
+                        </div>
+                    </div>
+                    <!-- Debug buttons -->
+                    <div style="margin-top: 10px;">
+                        <button id="debugStartButton" class="primary-button">Test Start Debate</button>
+                        <button id="debugConnectButton" class="secondary-button">Test WebSocket</button>
+                        <button id="debugManualConnectButton" class="success-button">Force Connect</button>
+                        <div id="debugStatus" style="margin-top: 5px; font-size: 0.9em; color: #666;"></div>
+                    </div>
+                </div>8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Debate Platform - Debate Session</title>
     <link rel="stylesheet" href="style.css">
@@ -126,6 +146,26 @@
     <script>
         // Initialize debate page
         document.addEventListener('DOMContentLoaded', () => {
+            // Set up test data if not exists (for testing purposes)
+            if (!localStorage.getItem('debateUser') || !localStorage.getItem('currentDebate')) {
+                console.log('Setting up test data...');
+                localStorage.setItem('debateUser', JSON.stringify({
+                    id: 1,
+                    username: 'test',
+                    mmr: 1500,
+                    user_class: 2
+                }));
+                
+                localStorage.setItem('currentDebate', JSON.stringify({
+                    id: 1,
+                    topic: 'Artificial intelligence will benefit humanity more than it will harm it',
+                    opponent: {
+                        username: 'test2',
+                        mmr: 1000
+                    }
+                }));
+            }
+            
             initializeDebatePage();
         });
     </script>

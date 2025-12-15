@@ -168,6 +168,24 @@ class Database:
             else:
                 cursor.execute("INSERT INTO users (username, password_hash, user_class, mmr) VALUES (?, ?, ?, ?)", 
                              ('test', password_hash, 2, 1500))
+        
+        # Create a second test account for testing matchmaking
+        if self.use_postgres:
+            cursor.execute("SELECT COUNT(*) FROM users WHERE username = %s", ('test2',))
+        else:
+            cursor.execute("SELECT COUNT(*) FROM users WHERE username = ?", ('test2',))
+        
+        count2 = cursor.fetchone()[0]
+        
+        if count2 == 0:
+            # Create test2 account with password "passpass" and UserClass 0
+            password_hash = hashlib.sha256('passpass'.encode()).hexdigest()
+            if self.use_postgres:
+                cursor.execute("INSERT INTO users (username, password_hash, user_class, mmr) VALUES (%s, %s, %s, %s)", 
+                             ('test2', password_hash, 0, 1000))
+            else:
+                cursor.execute("INSERT INTO users (username, password_hash, user_class, mmr) VALUES (?, ?, ?, ?)", 
+                             ('test2', password_hash, 0, 1000))
     
     def create_user(self, username, password, user_class=0):
         try:

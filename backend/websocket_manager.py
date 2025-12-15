@@ -337,7 +337,10 @@ class WebSocketHandler:
         user_id = data.get('user_id')
         debate_id = data.get('debate_id')
         
+        print(f"Received start_debate request: user_id={user_id}, debate_id={debate_id}")
+        
         if not user_id or not debate_id:
+            print("Error: Missing user_id or debate_id")
             return {
                 'type': 'start_debate_response',
                 'success': False,
@@ -346,7 +349,10 @@ class WebSocketHandler:
         
         # Check if debate exists in database
         debate_info = self.database.get_debate_by_id(debate_id)
+        print(f"Retrieved debate info: {debate_info}")
+        
         if not debate_info:
+            print(f"Error: Debate {debate_id} not found in database")
             return {
                 'type': 'start_debate_response',
                 'success': False,
@@ -372,6 +378,7 @@ class WebSocketHandler:
         
         # Create the debate session
         try:
+            print(f"Creating debate session for debate {debate_id}")
             await self.debate_manager.create_debate_session(
                 debate_id,
                 debate_info['user1_id'],

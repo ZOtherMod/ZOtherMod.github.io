@@ -9,17 +9,23 @@ let appState = {
 };
 
 function connectWebSocket() {
+    console.log('connectWebSocket called');
+    console.log('window.CONFIG:', window.CONFIG);
+    
     const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    console.log('isLocalhost:', isLocalhost);
     
     let wsUrl;
     if (isLocalhost) {
-        wsUrl = window.CONFIG.LOCAL_WEBSOCKET_URL;
+        wsUrl = window.CONFIG?.LOCAL_WEBSOCKET_URL || 'ws://localhost:8765';
+        console.log('Connecting to local WebSocket:', wsUrl);
     } else {
-        wsUrl = window.CONFIG.WEBSOCKET_URL;
+        wsUrl = window.CONFIG?.WEBSOCKET_URL || 'wss://debatesite.onrender.com';
         console.log('Connecting to production WebSocket:', wsUrl);
     }
     
     try {
+        console.log('Creating WebSocket connection to:', wsUrl);
         appState.websocket = new WebSocket(wsUrl);
         
         appState.websocket.onopen = handleWebSocketOpen;
@@ -30,12 +36,19 @@ function connectWebSocket() {
         updateConnectionStatus('Connecting...');
     } catch (error) {
         console.error('WebSocket connection failed:', error);
-        updateConnectionStatus('Connection failed');
+        updateConnectionStatus('Connection failed: ' + error.message);
+        
+        // Also show in debug status if available
+        const debugStatus = document.getElementById('debugStatus');
+        if (debugStatus) {
+            debugStatus.textContent = 'WebSocket error: ' + error.message;
+            debugStatus.style.color = 'red';
+        }
     }
 }
 
 function handleWebSocketOpen() {
-    console.log('WebSocket connected');
+    console.log('WebSocket connected successfully');
     appState.isConnected = true;
     appState.reconnectAttempts = 0;
     updateConnectionStatus('Connected', true);
@@ -44,7 +57,7 @@ function handleWebSocketOpen() {
 function handleWebSocketMessage(event) {
     try {
         const data = JSON.parse(event.data);
-        console.log('Received message:', data);
+        console.log('Received WebSocket message:', data);
         
         switch (data.type) {
             case 'auth_response':
@@ -136,6 +149,13 @@ function handleWebSocketClose() {
 function handleWebSocketError(error) {
     console.error('WebSocket error:', error);
     updateConnectionStatus('Connection error');
+    
+    // Show error in debug status if available
+    const debugStatus = document.getElementById('debugStatus');
+    if (debugStatus) {
+        debugStatus.textContent = 'WebSocket connection error';
+        debugStatus.style.color = 'red';
+    }
 }
 
 function sendWebSocketMessage(message) {
@@ -472,18 +492,34 @@ function initializeDebatePage() {
     setElementText('opponentUsername', appState.currentDebate.opponent.username);
     setElementText('opponentMMR', `MMR: ${appState.currentDebate.opponent.mmr}`);
     
+    console.log('Attempting to connect WebSocket...');
     connectWebSocket();
     
-    // Start the debate session once connected
-    setTimeout(() => {
+    // Start the debate session once WebSocket is connected
+    // Use interval to check connection status more reliably
+    let connectionCheckCount = 0;
+    const maxConnectionChecks = 10;
+    
+    const checkConnectionAndStart = setInterval(() => {
+        connectionCheckCount++;
+        
         if (appState.websocket && appState.websocket.readyState === WebSocket.OPEN) {
+            clearInterval(checkConnectionAndStart);
+            console.log('WebSocket connected, starting debate session');
+            console.log('Current user:', appState.currentUser);
+            console.log('Current debate:', appState.currentDebate);
+            
             sendWebSocketMessage({
                 type: 'start_debate',
                 user_id: appState.currentUser.id,
                 debate_id: appState.currentDebate.id
             });
+        } else if (connectionCheckCount >= maxConnectionChecks) {
+            clearInterval(checkConnectionAndStart);
+            console.error('Failed to establish WebSocket connection for debate');
+            showMessage('Connection failed. Please refresh the page.', 'error');
         }
-    }, 1000); // Wait 1 second for WebSocket to connect
+    }, 500); // Check every 500ms
     
 
     const submitBtn = document.getElementById('submitArgumentButton');
@@ -501,22 +537,215 @@ function initializeDebatePage() {
     if (argumentInput) {
         argumentInput.addEventListener('input', updateCharacterCount);
     }
+    
+    // Debug buttons for testing
+    const debugBtn = document.getElementById('debugStartButton');
+    const debugConnectBtn = document.getElementById('debugConnectButton');
+    const debugManualConnectBtn = document.getElementById('debugManualConnectButton');
+    const debugStatus = document.getElementById('debugStatus');
+    
+    if (debugBtn) {
+        debugBtn.addEventListener('click', () => {
+            console.log('Simulating debate start...');
+            if (debugStatus) debugStatus.textContent = 'Testing debate start simulation...';
+            
+            // Simulate the debate_started message
+            handleDebateStarted({
+                your_side: 'Proposition',
+                opponent_side: 'Negation'
+            });
+            
+            // Start the preparation timer
+            handlePrepTimer({
+                type: 'prep_timer_start'
+            });
+            
+            // Simulate countdown
+            let timeLeft = 180; // 3 minutes
+            const countdownInterval = setInterval(() => {
+                timeLeft--;
+                const minutes = Math.floor(timeLeft / 60);
+                const seconds = timeLeft % 60;
+                
+                handlePrepTimer({
+                    display: `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`,
+                    remaining_seconds: timeLeft
+                });
+                
+                if (timeLeft <= 0) {
+                    clearInterval(countdownInterval);
+                    if (debugStatus) debugStatus.textContent = 'Countdown completed!';
+                }
+            }, 1000);
+        });
+    }
+    
+    if (debugConnectBtn) {
+        debugConnectBtn.addEventListener('click', () => {
+            console.log('Testing WebSocket connection...');
+            if (debugStatus) debugStatus.textContent = 'Testing WebSocket connection...';
+            
+            if (appState.websocket) {
+                const state = appState.websocket.readyState;
+                const states = ['CONNECTING', 'OPEN', 'CLOSING', 'CLOSED'];
+                if (debugStatus) {
+                    debugStatus.textContent = `WebSocket state: ${states[state]}`;
+                    if (state === WebSocket.OPEN) {
+                        debugStatus.textContent += ' - Connection working!';
+                        
+                        // Test sending a message
+                        sendWebSocketMessage({
+                            type: 'start_debate',
+                            user_id: appState.currentUser?.id || 1,
+                            debate_id: appState.currentDebate?.id || 1
+                        });
+                    } else if (state === WebSocket.CLOSED || state === WebSocket.CLOSING) {
+                        debugStatus.textContent += ' - Reconnecting...';
+                        connectWebSocket();
+                    }
+                }
+            } else {
+                if (debugStatus) debugStatus.textContent = 'No WebSocket found - creating new connection...';
+                connectWebSocket();
+                
+                // Check again after a delay
+                setTimeout(() => {
+                    if (appState.websocket) {
+                        const state = appState.websocket.readyState;
+                        const states = ['CONNECTING', 'OPEN', 'CLOSING', 'CLOSED'];
+                        if (debugStatus) debugStatus.textContent = `New connection state: ${states[state]}`;
+                    }
+                }, 2000);
+            }
+        });
+    }
+    
+    if (debugManualConnectBtn) {
+        debugManualConnectBtn.addEventListener('click', () => {
+            alert('Manual connect button clicked!'); // Debug
+            console.log('Manual WebSocket connection attempt...');
+            if (debugStatus) debugStatus.textContent = 'Manually connecting to ws://localhost:8765...';
+            
+            try {
+                // Force create WebSocket connection directly
+                appState.websocket = new WebSocket('ws://localhost:8765');
+                
+                appState.websocket.onopen = function() {
+                    console.log('Manual WebSocket connection opened!');
+                    if (debugStatus) {
+                        debugStatus.textContent = 'Manual connection opened, authenticating...';
+                        debugStatus.style.color = 'orange';
+                    }
+                    
+                    // Auto-authenticate with test user
+                    console.log('🔧 DEBUG: Auto-authenticating with test user');
+                    const authMessage = {
+                        type: 'authenticate',
+                        username: 'test',
+                        password: 'testpass'
+                    };
+                    appState.websocket.send(JSON.stringify(authMessage));
+                    console.log('🔧 DEBUG: Auth message sent:', authMessage);
+                };
+                
+                appState.websocket.onmessage = function(event) {
+                    console.log('Manual WebSocket received:', event.data);
+                    
+                    try {
+                        const data = JSON.parse(event.data);
+                        
+                        if (data.type === 'auth_response') {
+                            if (data.success) {
+                                console.log('✅ DEBUG: Authentication successful!', data);
+                                appState.currentUserId = data.user_id;
+                                appState.isAuthenticated = true;
+                                if (debugStatus) {
+                                    debugStatus.textContent = `Authenticated as user ID: ${data.user_id}`;
+                                    debugStatus.style.color = 'green';
+                                }
+                                
+                                // Now we can test start_debate
+                                setTimeout(() => {
+                                    console.log('🔧 DEBUG: Testing start_debate message');
+                                    const startDebateMessage = {
+                                        type: 'start_debate',
+                                        user_id: data.user_id,
+                                        debate_id: 1
+                                    };
+                                    appState.websocket.send(JSON.stringify(startDebateMessage));
+                                    console.log('🔧 DEBUG: Start debate message sent:', startDebateMessage);
+                                }, 1000);
+                            } else {
+                                console.error('❌ DEBUG: Authentication failed:', data.error);
+                                if (debugStatus) {
+                                    debugStatus.textContent = `Authentication failed: ${data.error}`;
+                                    debugStatus.style.color = 'red';
+                                }
+                            }
+                        }
+                        
+                        if (data.type === 'debate_started') {
+                            console.log('🎉 DEBUG: Received debate_started!', data);
+                            if (debugStatus) {
+                                debugStatus.textContent = `Debate started: ${data.topic}`;
+                                debugStatus.style.color = 'blue';
+                            }
+                            handleDebateStarted(data);
+                        }
+                        
+                        // Handle all other message types through normal handler
+                        handleWebSocketMessage(event);
+                        
+                    } catch (e) {
+                        console.error('❌ DEBUG: Error parsing message:', e);
+                    }
+                };
+                
+                appState.websocket.onerror = function(error) {
+                    console.error('Manual WebSocket error:', error);
+                    if (debugStatus) {
+                        debugStatus.textContent = 'Manual connection failed!';
+                        debugStatus.style.color = 'red';
+                    }
+                };
+                
+                appState.websocket.onclose = function() {
+                    console.log('Manual WebSocket connection closed');
+                    appState.isAuthenticated = false;
+                    appState.currentUserId = null;
+                };
+                
+            } catch (error) {
+                console.error('Manual WebSocket creation failed:', error);
+                if (debugStatus) {
+                    debugStatus.textContent = 'Manual connection error: ' + error.message;
+                    debugStatus.style.color = 'red';
+                }
+            }
+        });
+    }
 }
 
 function handleStartDebateResponse(data) {
+    console.log('Start debate response:', data);
     if (data.success) {
         console.log('Debate session started successfully');
+        showMessage('Debate session started!', 'success');
     } else {
+        console.error('Failed to start debate:', data.error);
         showMessage(`Failed to start debate: ${data.error}`, 'error');
     }
 }
 
 function handleDebateStarted(data) {
+    console.log('Debate started:', data);
     setElementText('debatePhase', 'Preparation');
     
     // Store and display user's side
-    appState.currentDebate.yourSide = data.your_side;
-    appState.currentDebate.opponentSide = data.opponent_side;
+    if (appState.currentDebate) {
+        appState.currentDebate.yourSide = data.your_side;
+        appState.currentDebate.opponentSide = data.opponent_side;
+    }
     
     // Update side display if elements exist
     const yourSideElement = document.getElementById('yourSide');
@@ -533,12 +762,18 @@ function handleDebateStarted(data) {
 }
 
 function handlePrepTimer(data) {
+    console.log('Prep timer update:', data);
+    
     if (data.type === 'prep_timer_start') {
         setElementText('timerLabel', 'Preparation Time');
-        setElementText('turnStatus', 'Preparation phase - get ready for the debate!');
+        const turnStatusElement = document.getElementById('turnStatus');
+        if (turnStatusElement) {
+            setElementText('turnStatus', 'Preparation phase - get ready for the debate!');
+        }
     }
     
     if (data.display) {
+        console.log('Setting timer display to:', data.display);
         setElementText('timerDisplay', data.display);
         
         // Update progress bar
