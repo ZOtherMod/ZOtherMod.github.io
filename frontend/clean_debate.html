@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debate Platform - Live Debate</title>
+    <link rel="stylesheet" href="clean_style.css">
+</head>
+<body>
+    <!-- Main Container -->
+    <div class="debate-container">
+        
+        <!-- Header Section -->
+        <header class="debate-header">
+            <h1>🎯 Live Debate Platform</h1>
+            <div class="user-info">
+                <span id="currentUser">Welcome, User</span>
+                <span id="debateStatus" class="status-badge">Connecting...</span>
+            </div>
+        </header>
+
+        <!-- Connection Status -->
+        <div id="connectionStatus" class="connection-status hidden">
+            <div class="status-card">
+                <div class="loading-spinner"></div>
+                <h3 id="connectionTitle">Connecting to Server</h3>
+                <p id="connectionMessage">Please wait while we establish your connection...</p>
+                <div class="progress-steps">
+                    <div id="step1" class="step">
+                        <span class="step-icon">🔌</span>
+                        <span class="step-text">Connecting</span>
+                    </div>
+                    <div id="step2" class="step">
+                        <span class="step-icon">🔑</span>
+                        <span class="step-text">Authenticating</span>
+                    </div>
+                    <div id="step3" class="step">
+                        <span class="step-icon">👥</span>
+                        <span class="step-text">Finding Opponent</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Debate Interface -->
+        <main id="debateInterface" class="debate-main hidden">
+            
+            <!-- Topic Section -->
+            <section class="topic-section">
+                <h2>📝 Debate Topic</h2>
+                <div id="topicText" class="topic-display">
+                    Loading topic...
+                </div>
+            </section>
+
+            <!-- Timer Section -->
+            <section class="timer-section">
+                <div class="timer-card">
+                    <h3 id="timerLabel">Preparation Time</h3>
+                    <div id="timerDisplay" class="timer-display">03:00</div>
+                    <div class="timer-bar">
+                        <div id="timerProgress" class="timer-progress"></div>
+                    </div>
+                    <p id="timerMessage" class="timer-message">Get ready for the debate!</p>
+                </div>
+            </section>
+
+            <!-- Participants Section -->
+            <section class="participants-section">
+                <div class="participants-grid">
+                    <!-- Your Info -->
+                    <div class="participant-card your-card">
+                        <h4>You</h4>
+                        <div class="participant-info">
+                            <span id="yourUsername">Your Name</span>
+                            <span id="yourSide" class="side-badge">Waiting...</span>
+                        </div>
+                    </div>
+
+                    <!-- VS Divider -->
+                    <div class="vs-divider">
+                        <span class="vs-text">VS</span>
+                    </div>
+
+                    <!-- Opponent Info -->
+                    <div class="participant-card opponent-card">
+                        <h4>Opponent</h4>
+                        <div class="participant-info">
+                            <span id="opponentUsername">Finding opponent...</span>
+                            <span id="opponentSide" class="side-badge">Waiting...</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Debate Messages Section -->
+            <section class="messages-section">
+                <h3>💬 Debate Discussion</h3>
+                <div id="messagesContainer" class="messages-container">
+                    <div class="system-message">
+                        <span class="message-icon">ℹ️</span>
+                        <span class="message-text">Debate will begin after preparation time.</span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Input Section -->
+            <section class="input-section">
+                <div id="turnIndicator" class="turn-indicator">
+                    <span id="turnStatus">Preparation phase - Get ready!</span>
+                </div>
+
+                <div id="messageInputArea" class="message-input-area hidden">
+                    <div class="input-header">
+                        <span class="input-label">Your Argument</span>
+                        <span id="characterCount" class="character-count">0/500</span>
+                    </div>
+                    <textarea 
+                        id="messageInput" 
+                        placeholder="Type your argument here... (max 500 characters)"
+                        maxlength="500"
+                        rows="4"
+                    ></textarea>
+                    <div class="input-controls">
+                        <button id="sendMessage" class="send-button" disabled>
+                            Send Argument
+                        </button>
+                        <button id="clearMessage" class="clear-button">
+                            Clear
+                        </button>
+                    </div>
+                </div>
+
+                <div id="waitingArea" class="waiting-area hidden">
+                    <div class="waiting-spinner"></div>
+                    <p id="waitingMessage">Waiting for opponent's argument...</p>
+                </div>
+            </section>
+
+        </main>
+
+        <!-- Footer -->
+        <footer class="debate-footer">
+            <p>Real-time debate platform - Speak your mind, respect others</p>
+        </footer>
+
+    </div>
+
+    <!-- Notification Area -->
+    <div id="notifications" class="notifications"></div>
+
+    <!-- JavaScript -->
+    <script src="clean_script.js"></script>
+    <script>
+        // Initialize debate page when DOM is ready
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log('🚀 Initializing Debate Platform...');
+            initializeDebatePage();
+        });
+    </script>
+
+</body>
+</html>
