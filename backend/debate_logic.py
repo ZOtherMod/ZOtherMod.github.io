@@ -112,27 +112,31 @@ class DebateSession:
             print(f"Both players ready for debate {self.debate_id}! Starting preparation phase...")
             await self.both_players_connected()
         else:
-            # Send status updates
+            # Send status updates only to connected users
             if user1_connected and not user2_connected:
-                status = "Waiting for opponent..."
-                await self.websocket_manager.send_to_user(self.user1_id, {
-                    'type': 'connection_status',
-                    'status': status
-                })
-                await self.websocket_manager.send_to_user(self.user2_id, {
-                    'type': 'connection_status', 
-                    'status': 'Connecting... Please ping when ready'
-                })
+                if self.websocket_manager.is_user_connected(self.user1_id):
+                    status = "Waiting for opponent..."
+                    await self.websocket_manager.send_to_user(self.user1_id, {
+                        'type': 'connection_status',
+                        'status': status
+                    })
+                if self.websocket_manager.is_user_connected(self.user2_id):
+                    await self.websocket_manager.send_to_user(self.user2_id, {
+                        'type': 'connection_status', 
+                        'status': 'Connecting... Please ping when ready'
+                    })
             elif user2_connected and not user1_connected:
-                status = "Waiting for opponent..."
-                await self.websocket_manager.send_to_user(self.user2_id, {
-                    'type': 'connection_status',
-                    'status': status
-                })
-                await self.websocket_manager.send_to_user(self.user1_id, {
-                    'type': 'connection_status',
-                    'status': 'Connecting... Please ping when ready'
-                })
+                if self.websocket_manager.is_user_connected(self.user2_id):
+                    status = "Waiting for opponent..."
+                    await self.websocket_manager.send_to_user(self.user2_id, {
+                        'type': 'connection_status',
+                        'status': status
+                    })
+                if self.websocket_manager.is_user_connected(self.user1_id):
+                    await self.websocket_manager.send_to_user(self.user1_id, {
+                        'type': 'connection_status',
+                        'status': 'Connecting... Please ping when ready'
+                    })
     
     async def both_players_connected(self):
         """Called when both players are connected and ready"""
@@ -172,12 +176,24 @@ class DebateSession:
         while self.phase == 'waiting_for_players':
             try:
                 await asyncio.sleep(2)  # Check every 2 seconds
-                await self.check_both_players_ready()
+                
+                # Only check if at least one user is connected
+                if (self.websocket_manager.is_user_connected(self.user1_id) or 
+                    self.websocket_manager.is_user_connected(self.user2_id)):
+                    await self.check_both_players_ready()
+                else:
+                    # No users connected, stop the session
+                    print(f"No users connected for debate {self.debate_id}, stopping session")
+                    self.phase = 'ended'  # Stop the loop
+                    break
             except asyncio.CancelledError:
                 break
             except Exception as e:
                 print(f"Error in ping check: {e}")
                 break
+        
+        # Clean up when loop exits
+        await self.cleanup_session()
     
     async def start_preparation_phase(self):
         """Start the preparation timer"""
@@ -389,6 +405,21 @@ class DebateSession:
             'messages': self.messages
         }
 
+    async def cleanup_session(self):
+        """Clean up all running tasks and resources"""
+        print(f"Cleaning up debate session {self.debate_id}")
+        
+        if self.prep_timer_task and not self.prep_timer_task.done():
+            self.prep_timer_task.cancel()
+            
+        if self.turn_timer_task and not self.turn_timer_task.done():
+            self.turn_timer_task.cancel()
+            
+        if self.ping_check_task and not self.ping_check_task.done():
+            self.ping_check_task.cancel()
+        
+        self.phase = 'ended'
+
 class DebateManager:
     def __init__(self, websocket_manager, database):
         self.websocket_manager = websocket_manager
@@ -441,10 +472,13 @@ class DebateManager:
         debate_id = self.user_debates[user_id]
         return self.active_debates.get(debate_id)
     
-    def remove_debate_session(self, debate_id: int):
+    async def remove_debate_session(self, debate_id: int):
         """Remove a completed debate session"""
         if debate_id in self.active_debates:
             session = self.active_debates[debate_id]
+            
+            # Clean up the session first
+            await session.cleanup_session()
             
             # Remove user mappings
             if session.user1_id in self.user_debates:

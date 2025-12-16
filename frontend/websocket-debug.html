@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html>
+<head><title>WebSocket Debug Test</title></head>
+<body>
+<h1>WebSocket Debug Test</h1>
+<div id="status">Loading...</div>
+<button onclick="testConnection()">Manual Test</button>
+<div id="log"></div>
+
+<script>
+let ws;
+let logDiv = document.getElementById('log');
+let statusDiv = document.getElementById('status');
+
+function log(message) {
+    console.log(message);
+    logDiv.innerHTML += new Date().toLocaleTimeString() + ': ' + message + '<br>';
+}
+
+function testConnection() {
+    log('Starting manual WebSocket test...');
+    statusDiv.textContent = 'Connecting...';
+    
+    try {
+        ws = new WebSocket('ws://localhost:8765');
+        log('WebSocket created');
+        
+        // Set ALL handlers immediately
+        ws.addEventListener('open', function(event) {
+            log('✅ OPEN event fired!');
+            statusDiv.textContent = 'Connected - sending auth...';
+            
+            const auth = {
+                type: 'authenticate',
+                username: 'test',
+                password: 'passpass'
+            };
+            
+            log('Sending: ' + JSON.stringify(auth));
+            ws.send(JSON.stringify(auth));
+        });
+        
+        ws.addEventListener('message', function(event) {
+            log('📨 Message received: ' + event.data);
+            statusDiv.textContent = 'Got message: ' + event.data;
+        });
+        
+        ws.addEventListener('error', function(error) {
+            log('❌ Error: ' + error);
+            statusDiv.textContent = 'Error occurred';
+        });
+        
+        ws.addEventListener('close', function(event) {
+            log('❌ Closed: ' + event.code + ' - ' + event.reason);
+            statusDiv.textContent = 'Disconnected: ' + event.code;
+        });
+        
+        log('Event listeners attached');
+        
+    } catch (error) {
+        log('❌ Exception creating WebSocket: ' + error);
+        statusDiv.textContent = 'Failed to create WebSocket';
+    }
+}
+
+// Auto-start after page loads
+document.addEventListener('DOMContentLoaded', function() {
+    log('Page loaded, auto-starting test in 2 seconds...');
+    setTimeout(testConnection, 2000);
+});
+
+statusDiv.textContent = 'Ready to test';
+log('Script initialized');
+</script>
+</body>
+</html>

@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WebSocket Debug Test</title>
+</head>
+<body>
+    <h1>WebSocket Connection Test</h1>
+    <div id="status">Initializing...</div>
+    <button onclick="forceConnect()">Connect</button>
+    <button onclick="forceAuth()">Authenticate</button>
+    <button onclick="forceStart()">Start Debate</button>
+    
+    <div id="log" style="margin-top: 20px; font-family: monospace; font-size: 12px; white-space: pre-wrap; background: #f0f0f0; padding: 10px; height: 300px; overflow-y: scroll;"></div>
+
+    <script>
+        let ws = null;
+        let currentUserId = null;
+        
+        function log(message) {
+            const logDiv = document.getElementById('log');
+            const timestamp = new Date().toISOString().split('T')[1].substring(0, 8);
+            logDiv.textContent += `[${timestamp}] ${message}\n`;
+            logDiv.scrollTop = logDiv.scrollHeight;
+            console.log(message);
+        }
+        
+        function updateStatus(status) {
+            document.getElementById('status').textContent = status;
+            log(`Status: ${status}`);
+        }
+        
+        function forceConnect() {
+            log('=== FORCE CONNECT CLICKED ===');
+            if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
+                log('WebSocket already connected/connecting');
+                return;
+            }
+            
+            updateStatus('Connecting...');
+            
+            try {
+                ws = new WebSocket('ws://localhost:8765');
+                
+                ws.onopen = function() {
+                    log('WebSocket OPENED successfully');
+                    updateStatus('Connected - Ready to authenticate');
+                };
+                
+                ws.onmessage = function(event) {
+                    const data = JSON.parse(event.data);
+                    log(`Received: ${JSON.stringify(data, null, 2)}`);
+                    
+                    if (data.type === 'auth_response') {
+                        if (data.success) {
+                            currentUserId = data.user_id;
+                            updateStatus(`Authenticated as user ${data.user_id} (${data.username})`);
+                        } else {
+                            updateStatus(`Auth failed: ${data.error}`);
+                        }
+                    }
+                };
+                
+                ws.onclose = function(event) {
+                    log(`WebSocket CLOSED: code=${event.code}, reason=${event.reason}, wasClean=${event.wasClean}`);
+                    updateStatus('Connection closed');
+                };
+                
+                ws.onerror = function(error) {
+                    log(`WebSocket ERROR: ${error}`);
+                    updateStatus('Connection error');
+                };
+                
+            } catch (error) {
+                log(`Connection failed: ${error}`);
+                updateStatus('Connection failed');
+            }
+        }
+        
+        function forceAuth() {
+            log('=== FORCE AUTH CLICKED ===');
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                log('WebSocket not connected');
+                return;
+            }
+            
+            const authMsg = {
+                type: 'authenticate',
+                username: 'test',
+                password: 'passpass'
+            };
+            
+            log(`Sending auth: ${JSON.stringify(authMsg)}`);
+            ws.send(JSON.stringify(authMsg));
+        }
+        
+        function forceStart() {
+            log('=== FORCE START CLICKED ===');
+            if (!currentUserId) {
+                log('Not authenticated yet');
+                return;
+            }
+            
+            const startMsg = {
+                type: 'start_debate',
+                user_id: currentUserId,
+                debate_id: 1
+            };
+            
+            log(`Sending start_debate: ${JSON.stringify(startMsg)}`);
+            ws.send(JSON.stringify(startMsg));
+        }
+        
+        // Auto-connect on page load
+        window.onload = function() {
+            log('=== PAGE LOADED ===');
+            updateStatus('Page loaded - click Connect to start');
+            
+            // Auto-connect after a short delay
+            setTimeout(() => {
+                log('Auto-connecting...');
+                forceConnect();
+            }, 500);
+        };
+    </script>
+</body>
+</html>

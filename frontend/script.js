@@ -1,3 +1,7 @@
+// Script loaded indicator
+console.log('=== Debate Platform Script Loading ===');
+console.log('Timestamp:', new Date().toISOString());
+
 let appState = {
     websocket: null,
     currentUser: null,
@@ -10,6 +14,8 @@ let appState = {
     currentUserId: null,
     connectionState: 'disconnected' // disconnected, connecting, connected, authenticating, authenticated, waiting_opponent, ready
 };
+
+console.log('Initial app state:', appState);
 
 // Connection Overlay Management
 function showConnectionOverlay() {
@@ -107,14 +113,23 @@ function setConnectionState(newState) {
 }
 
 function connectWebSocket() {
-    console.log('connectWebSocket called');
+    console.log('connectWebSocket called. Current state:', appState.connectionState);
+    
     // If an existing socket is open or connecting, reuse it to avoid duplicates
     if (appState.websocket) {
         const state = appState.websocket.readyState;
+        console.log('Existing WebSocket state:', ['CONNECTING', 'OPEN', 'CLOSING', 'CLOSED'][state]);
+        
         // 0 = CONNECTING, 1 = OPEN
         if (state === WebSocket.OPEN || state === WebSocket.CONNECTING) {
             console.log('Existing WebSocket already open/connecting. Reusing it. readyState=', state);
             return;
+        }
+        
+        // Clean up closed/closing sockets
+        if (state === WebSocket.CLOSED || state === WebSocket.CLOSING) {
+            console.log('Cleaning up old WebSocket');
+            appState.websocket = null;
         }
     }
 
@@ -133,13 +148,27 @@ function connectWebSocket() {
         console.log('Creating WebSocket connection to:', wsUrl);
         appState.websocket = new WebSocket(wsUrl);
         
-        appState.websocket.onopen = handleWebSocketOpen;
+        // Add connection timeout
+        const connectionTimeout = setTimeout(() => {
+            if (appState.websocket.readyState === WebSocket.CONNECTING) {
+                console.log('WebSocket connection timed out');
+                appState.websocket.close();
+                setConnectionState('disconnected');
+            }
+        }, 10000); // 10 second timeout
+        
+        appState.websocket.onopen = function() {
+            clearTimeout(connectionTimeout);
+            handleWebSocketOpen();
+        };
         appState.websocket.onmessage = handleWebSocketMessage;
         appState.websocket.onclose = function(event) {
-            console.log('WebSocket closed. code=', event.code, 'reason=', event.reason);
+            clearTimeout(connectionTimeout);
+            console.log('WebSocket closed. code=', event.code, 'reason=', event.reason, 'wasClean=', event.wasClean);
             handleWebSocketClose(event);
         };
         appState.websocket.onerror = function(error) {
+            clearTimeout(connectionTimeout);
             console.error('WebSocket encountered error:', error);
             handleWebSocketError(error);
         };
@@ -152,14 +181,27 @@ function connectWebSocket() {
 
 function handleWebSocketOpen() {
     console.log('WebSocket connected successfully');
+    console.log('WebSocket readyState:', appState.websocket.readyState);
     appState.isConnected = true;
     appState.reconnectAttempts = 0;
     setConnectionState('connected');
     
-    // Auto-authenticate with test user for debugging
-    setTimeout(() => {
-        authenticateTestUser();
-    }, 500);
+    // Ensure WebSocket is truly ready before authenticating
+    const authenticateWhenReady = () => {
+        console.log('Checking WebSocket readiness for authentication...');
+        console.log('WebSocket readyState:', appState.websocket.readyState);
+        
+        if (appState.websocket && appState.websocket.readyState === WebSocket.OPEN) {
+            console.log('✅ WebSocket is OPEN - sending authentication');
+            authenticateTestUser();
+        } else {
+            console.log('❌ WebSocket not ready yet, retrying in 100ms');
+            setTimeout(authenticateWhenReady, 100);
+        }
+    };
+    
+    // Start authentication check immediately, then retry if needed
+    authenticateWhenReady();
 }
 
 function handleWebSocketMessage(event) {
@@ -240,23 +282,36 @@ function handleWebSocketMessage(event) {
     }
 }
 
-function handleWebSocketClose() {
-    console.log('WebSocket connection closed');
+function handleWebSocketClose(event) {
+    console.log('WebSocket connection closed. Code:', event?.code, 'Reason:', event?.reason, 'wasClean:', event?.wasClean);
     appState.isConnected = false;
-    updateConnectionStatus('Disconnected');
+    appState.isAuthenticated = false;
+    appState.currentUserId = null;
+    appState.websocket = null; // Clear the socket reference
     
+    // Stop auto-ping if it's running
+    stopAutoPing();
+    
+    setConnectionState('disconnected');
 
-    if (appState.reconnectAttempts < appState.maxReconnectAttempts) {
-        appState.reconnectAttempts++;
-        console.log(`Reconnect attempt ${appState.reconnectAttempts}/${appState.maxReconnectAttempts}`);
-        updateConnectionStatus(`Reconnecting (${appState.reconnectAttempts})...`);
-        
-        setTimeout(() => {
-            connectWebSocket();
-        }, appState.reconnectDelay);
+    // Only auto-reconnect for unexpected closes (not manual closes)
+    if (event && event.code !== 1000) { // 1000 = normal closure
+        if (appState.reconnectAttempts < appState.maxReconnectAttempts) {
+            appState.reconnectAttempts++;
+            console.log(`Reconnect attempt ${appState.reconnectAttempts}/${appState.maxReconnectAttempts} in ${appState.reconnectDelay}ms`);
+            updateConnectionStatus(`Reconnecting (${appState.reconnectAttempts})...`);
+            
+            setTimeout(() => {
+                console.log('Attempting reconnection...');
+                connectWebSocket();
+            }, appState.reconnectDelay);
+        } else {
+            console.log('Max reconnection attempts reached');
+            updateConnectionStatus('Connection lost - please refresh page');
+            showMessage('Connection lost after multiple attempts. Please refresh the page.', 'error');
+        }
     } else {
-        updateConnectionStatus('Connection lost');
-        showMessage('Connection lost. Please refresh the page.', 'error');
+        console.log('WebSocket closed normally, not reconnecting');
     }
 }
 
@@ -273,11 +328,17 @@ function handleWebSocketError(error) {
 }
 
 function sendWebSocketMessage(message) {
+    console.log('sendWebSocketMessage called with:', message);
+    console.log('WebSocket state:', appState.websocket ? appState.websocket.readyState : 'null');
+    
     if (appState.websocket && appState.websocket.readyState === WebSocket.OPEN) {
-        appState.websocket.send(JSON.stringify(message));
+        const jsonMessage = JSON.stringify(message);
+        console.log('✅ Sending WebSocket message:', jsonMessage);
+        appState.websocket.send(jsonMessage);
         return true;
     } else {
-        console.error('WebSocket not connected');
+        const state = appState.websocket ? ['CONNECTING', 'OPEN', 'CLOSING', 'CLOSED'][appState.websocket.readyState] : 'NO_WEBSOCKET';
+        console.error('❌ WebSocket not ready for sending. State:', state);
         showMessage('Not connected to server', 'error');
         return false;
     }
@@ -374,13 +435,24 @@ function handleAuthResponse(data) {
 }
 
 function authenticateTestUser() {
-    console.log('Auto-authenticating test user...');
+    console.log('🔐 Auto-authenticating test user...');
+    console.log('Current connection state:', appState.connectionState);
+    console.log('WebSocket ready:', appState.websocket ? appState.websocket.readyState === WebSocket.OPEN : false);
     
-    sendWebSocketMessage({
+    const authMessage = {
         type: 'authenticate',
         username: 'test',
         password: 'testpass'
-    });
+    };
+    
+    console.log('Authentication message to send:', authMessage);
+    const sent = sendWebSocketMessage(authMessage);
+    
+    if (sent) {
+        console.log('✅ Authentication message sent successfully');
+    } else {
+        console.log('❌ Failed to send authentication message');
+    }
 }
 
 function startDebateProcess() {
@@ -634,9 +706,16 @@ function initializeDebatePage() {
     setElementText('usernameDisplay', 'User');
     setElementText('topicText', 'Loading...');
     
-    // Start connection process
+    // Start connection process with a small delay to ensure DOM is ready
     console.log('Starting WebSocket connection...');
-    connectWebSocket();
+    setTimeout(() => {
+        try {
+            connectWebSocket();
+        } catch (error) {
+            console.error('Error starting WebSocket connection:', error);
+            setConnectionState('disconnected');
+        }
+    }, 100);
     
 
     const submitBtn = document.getElementById('submitArgumentButton');

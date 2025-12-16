@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WebSocket Connection Test</title>
+</head>
+<body>
+    <h1>WebSocket Connection Test</h1>
+    <div id="status">Loading...</div>
+    <button id="connectBtn">Test Connect</button>
+    <button id="authBtn">Test Auth</button>
+    <div id="log" style="white-space: pre-wrap; font-family: monospace; margin-top: 20px;"></div>
+
+    <script>
+        const log = document.getElementById('log');
+        const status = document.getElementById('status');
+        
+        function addLog(message) {
+            const timestamp = new Date().toISOString();
+            log.textContent += `[${timestamp}] ${message}\n`;
+            console.log(message);
+        }
+        
+        let ws = null;
+        
+        function testConnect() {
+            addLog('Testing WebSocket connection to ws://localhost:8765');
+            status.textContent = 'Connecting...';
+            
+            try {
+                ws = new WebSocket('ws://localhost:8765');
+                
+                ws.onopen = function() {
+                    addLog('✅ WebSocket connected successfully!');
+                    status.textContent = 'Connected';
+                };
+                
+                ws.onmessage = function(event) {
+                    addLog('📨 Received: ' + event.data);
+                };
+                
+                ws.onclose = function(event) {
+                    addLog('❌ WebSocket closed. Code: ' + event.code + ', Reason: ' + event.reason);
+                    status.textContent = 'Disconnected';
+                };
+                
+                ws.onerror = function(error) {
+                    addLog('🚫 WebSocket error: ' + error);
+                    status.textContent = 'Error';
+                };
+                
+            } catch (error) {
+                addLog('💥 Exception creating WebSocket: ' + error);
+                status.textContent = 'Failed';
+            }
+        }
+        
+        function testAuth() {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                addLog('🔐 Sending authentication...');
+                ws.send(JSON.stringify({
+                    type: 'authenticate',
+                    username: 'test2',
+                    password: 'passpass'
+                }));
+            } else {
+                addLog('❌ WebSocket not connected');
+            }
+        }
+        
+        document.getElementById('connectBtn').onclick = testConnect;
+        document.getElementById('authBtn').onclick = testAuth;
+        
+        addLog('🚀 Test page loaded');
+        
+        // Auto-connect after 1 second
+        setTimeout(() => {
+            addLog('🔄 Auto-connecting...');
+            testConnect();
+        }, 1000);
+    </script>
+</body>
+</html>

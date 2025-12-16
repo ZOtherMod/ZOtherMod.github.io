@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WebSocket Debug - Step by Step</title>
+</head>
+<body>
+    <h1>WebSocket Authentication Debug</h1>
+    <div id="status" style="font-size: 18px; margin: 10px 0;"></div>
+    
+    <button onclick="step1_connect()">Step 1: Connect</button>
+    <button onclick="step2_auth()">Step 2: Authenticate</button>
+    <button onclick="step3_start()">Step 3: Start Debate</button>
+    <button onclick="clearLog()">Clear Log</button>
+    
+    <div id="log" style="margin-top: 20px; font-family: monospace; font-size: 12px; white-space: pre-wrap; background: #f0f0f0; padding: 10px; height: 400px; overflow-y: scroll; border: 1px solid #ccc;"></div>
+
+    <script>
+        let ws = null;
+        let currentUserId = null;
+        
+        function log(message) {
+            const logDiv = document.getElementById('log');
+            const timestamp = new Date().toISOString().split('T')[1].substring(0, 12);
+            const logMessage = `[${timestamp}] ${message}`;
+            logDiv.textContent += logMessage + '\n';
+            logDiv.scrollTop = logDiv.scrollHeight;
+            console.log(logMessage);
+        }
+        
+        function updateStatus(status) {
+            document.getElementById('status').textContent = `Status: ${status}`;
+            log(`STATUS CHANGE: ${status}`);
+        }
+        
+        function clearLog() {
+            document.getElementById('log').textContent = '';
+            log('=== LOG CLEARED ===');
+        }
+        
+        function step1_connect() {
+            log('=== STEP 1: MANUAL CONNECT ===');
+            
+            if (ws) {
+                const states = ['CONNECTING', 'OPEN', 'CLOSING', 'CLOSED'];
+                log(`Existing WebSocket state: ${states[ws.readyState]}`);
+                if (ws.readyState === WebSocket.OPEN) {
+                    log('Already connected!');
+                    updateStatus('Already connected');
+                    return;
+                }
+            }
+            
+            updateStatus('Connecting...');
+            
+            try {
+                const wsUrl = 'ws://localhost:8765';
+                log(`Creating WebSocket to: ${wsUrl}`);
+                ws = new WebSocket(wsUrl);
+                
+                ws.onopen = function(event) {
+                    log('*** WebSocket onopen event fired ***');
+                    log(`Event details: ${JSON.stringify({
+                        type: event.type,
+                        target: event.target.constructor.name,
+                        readyState: ws.readyState
+                    })}`);
+                    updateStatus('Connected - Ready for auth');
+                };
+                
+                ws.onmessage = function(event) {
+                    log(`*** WebSocket message received ***`);
+                    log(`Raw data: ${event.data}`);
+                    
+                    try {
+                        const data = JSON.parse(event.data);
+                        log(`Parsed data: ${JSON.stringify(data, null, 2)}`);
+                        
+                        if (data.type === 'auth_response') {
+                            if (data.success) {
+                                currentUserId = data.user_id;
+                                updateStatus(`✅ Authenticated as ${data.username} (ID: ${data.user_id})`);
+                                log(`Authentication SUCCESS! User ID: ${data.user_id}`);
+                            } else {
+                                updateStatus(`❌ Auth failed: ${data.error}`);
+                                log(`Authentication FAILED: ${data.error}`);
+                            }
+                        } else if (data.type === 'start_debate_response') {
+                            if (data.success) {
+                                updateStatus('✅ Debate started successfully');
+                                log('Debate start SUCCESS!');
+                            } else {
+                                updateStatus(`❌ Debate start failed: ${data.error}`);
+                                log(`Debate start FAILED: ${data.error}`);
+                            }
+                        }
+                    } catch (error) {
+                        log(`Error parsing message: ${error}`);
+                    }
+                };
+                
+                ws.onclose = function(event) {
+                    log(`*** WebSocket onclose event ***`);
+                    log(`Close details: code=${event.code}, reason="${event.reason}", wasClean=${event.wasClean}`);
+                    updateStatus('Connection closed');
+                };
+                
+                ws.onerror = function(error) {
+                    log(`*** WebSocket onerror event ***`);
+                    log(`Error: ${error}`);
+                    updateStatus('Connection error');
+                };
+                
+                log('WebSocket object created with handlers attached');
+                
+            } catch (error) {
+                log(`EXCEPTION creating WebSocket: ${error}`);
+                updateStatus('Connection failed');
+            }
+        }
+        
+        function step2_auth() {
+            log('=== STEP 2: MANUAL AUTHENTICATE ===');
+            
+            if (!ws) {
+                log('ERROR: No WebSocket object');
+                updateStatus('Not connected');
+                return;
+            }
+            
+            if (ws.readyState !== WebSocket.OPEN) {
+                const states = ['CONNECTING', 'OPEN', 'CLOSING', 'CLOSED'];
+                log(`ERROR: WebSocket not open. State: ${states[ws.readyState]}`);
+                updateStatus('WebSocket not ready');
+                return;
+            }
+            
+            const authMsg = {
+                type: 'authenticate',
+                username: 'test',
+                password: 'passpass'
+            };
+            
+            log(`Sending authentication message:`);
+            log(JSON.stringify(authMsg, null, 2));
+            
+            try {
+                ws.send(JSON.stringify(authMsg));
+                log('Authentication message sent successfully');
+                updateStatus('Authentication sent...');
+            } catch (error) {
+                log(`ERROR sending auth message: ${error}`);
+                updateStatus('Auth send failed');
+            }
+        }
+        
+        function step3_start() {
+            log('=== STEP 3: START DEBATE ===');
+            
+            if (!currentUserId) {
+                log('ERROR: Not authenticated yet');
+                updateStatus('Not authenticated');
+                return;
+            }
+            
+            const startMsg = {
+                type: 'start_debate',
+                user_id: currentUserId,
+                debate_id: 1
+            };
+            
+            log(`Sending start_debate message:`);
+            log(JSON.stringify(startMsg, null, 2));
+            
+            try {
+                ws.send(JSON.stringify(startMsg));
+                log('Start debate message sent successfully');
+                updateStatus('Start debate sent...');
+            } catch (error) {
+                log(`ERROR sending start message: ${error}`);
+                updateStatus('Start send failed');
+            }
+        }
+        
+        // Auto-start when page loads
+        window.addEventListener('DOMContentLoaded', function() {
+            log('=== PAGE LOADED - DOMContentLoaded ===');
+            updateStatus('Page loaded');
+            
+            // Auto-connect after 1 second
+            setTimeout(() => {
+                log('=== AUTO-CONNECTING IN 1 SECOND ===');
+                step1_connect();
+                
+                // Auto-authenticate after connection
+                setTimeout(() => {
+                    if (ws && ws.readyState === WebSocket.OPEN) {
+                        log('=== AUTO-AUTHENTICATING ===');
+                        step2_auth();
+                    } else {
+                        log('Auto-auth skipped - WebSocket not ready');
+                    }
+                }, 1000);
+            }, 1000);
+        });
+        
+        log('=== SCRIPT LOADED ===');
+    </script>
+</body>
+</html>
