@@ -507,17 +507,32 @@ function authenticateTestUser() {
     console.log('Current connection state:', appState.connectionState);
     console.log('WebSocket ready:', appState.websocket ? appState.websocket.readyState === WebSocket.OPEN : false);
     
+    // Check URL parameter for user selection, or pick randomly
+    const urlParams = new URLSearchParams(window.location.search);
+    let username, password;
+    
+    if (urlParams.get('user') === '2') {
+        username = 'test2';
+        password = 'passpass'; // test2 uses passpass password
+    } else if (urlParams.get('user') === '1' || Math.random() < 0.5) {
+        username = 'test';
+        password = 'testpass'; // test uses testpass password
+    } else {
+        username = 'test2';
+        password = 'passpass';
+    }
+    
     const authMessage = {
         type: 'authenticate',
-        username: 'test',
-        password: 'testpass'
+        username: username,
+        password: password
     };
     
     console.log('Authentication message to send:', authMessage);
     const sent = sendWebSocketMessage(authMessage);
     
     if (sent) {
-        console.log('✅ Authentication message sent successfully');
+        console.log('✅ Authentication message sent successfully for user:', username);
     } else {
         console.log('❌ Failed to send authentication message');
     }
