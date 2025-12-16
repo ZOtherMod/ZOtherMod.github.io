@@ -138,10 +138,39 @@ function connectWebSocket() {
     const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
     
     let wsUrl;
-    if (isLocalhost) {
+    
+    // Check if we have a temporary URL from fallback attempt
+    if (appState.temporaryWsUrl) {
+        wsUrl = appState.temporaryWsUrl;
+        appState.temporaryWsUrl = null; // Clear it after use
+        console.log('Using fallback WebSocket URL:', wsUrl);
+    } else if (isLocalhost) {
         wsUrl = window.CONFIG?.LOCAL_WEBSOCKET_URL || 'ws://localhost:8765';
     } else {
-        wsUrl = window.CONFIG?.WEBSOCKET_URL || 'wss://debatesite.onrender.com';
+        // For production, try multiple possible WebSocket URLs
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const host = window.location.host; // includes port if any
+        
+        // Try these URLs in order:
+        // 1. Configured URL
+        // 2. Same server with /ws path  
+        // 3. Same server root
+        // 4. Hardcoded fallback
+        const possibleUrls = [
+            window.CONFIG?.WEBSOCKET_URL,
+            `${protocol}//${host}/ws`,
+            `${protocol}//${host}`,
+            'wss://debatesite.onrender.com'
+        ].filter(Boolean);
+        
+        wsUrl = possibleUrls[0];
+        
+        // Only set fallback URLs on first connection attempt
+        if (!appState.fallbackUrls) {
+            appState.fallbackUrls = possibleUrls.slice(1);
+            console.log('Production WebSocket URL:', wsUrl);
+            console.log('Fallback URLs available:', appState.fallbackUrls);
+        }
     }
     
     try {
@@ -159,17 +188,39 @@ function connectWebSocket() {
         
         appState.websocket.onopen = function() {
             clearTimeout(connectionTimeout);
+            console.log('✅ WebSocket OPENED successfully to:', wsUrl);
             handleWebSocketOpen();
         };
         appState.websocket.onmessage = handleWebSocketMessage;
         appState.websocket.onclose = function(event) {
             clearTimeout(connectionTimeout);
-            console.log('WebSocket closed. code=', event.code, 'reason=', event.reason, 'wasClean=', event.wasClean);
+            console.log('❌ WebSocket CLOSED. URL:', wsUrl, 'code=', event.code, 'reason=', event.reason, 'wasClean=', event.wasClean);
+            
+            // Log common close codes for debugging
+            const closeCodes = {
+                1000: 'Normal closure',
+                1001: 'Going away', 
+                1002: 'Protocol error',
+                1003: 'Unsupported data',
+                1006: 'Abnormal closure (no close frame)',
+                1007: 'Invalid frame payload data',
+                1008: 'Policy violation',
+                1009: 'Message too big',
+                1010: 'Missing extension',
+                1011: 'Internal error',
+                1012: 'Service restart',
+                1013: 'Try again later',
+                1014: 'Bad gateway',
+                1015: 'TLS handshake failure'
+            };
+            
+            console.log('❌ Close code meaning:', closeCodes[event.code] || 'Unknown');
+            
             handleWebSocketClose(event);
         };
         appState.websocket.onerror = function(error) {
             clearTimeout(connectionTimeout);
-            console.error('WebSocket encountered error:', error);
+            console.error('❌ WebSocket ERROR. URL:', wsUrl, 'error:', error);
             handleWebSocketError(error);
         };
         
@@ -296,6 +347,23 @@ function handleWebSocketClose(event) {
 
     // Only auto-reconnect for unexpected closes (not manual closes)
     if (event && event.code !== 1000) { // 1000 = normal closure
+        
+        // Try fallback URLs first if available
+        if (appState.fallbackUrls && appState.fallbackUrls.length > 0 && appState.reconnectAttempts === 0) {
+            const nextUrl = appState.fallbackUrls.shift();
+            console.log('🔄 Trying fallback WebSocket URL:', nextUrl);
+            updateConnectionStatus(`Trying alternate server...`);
+            
+            // Override the URL temporarily
+            appState.temporaryWsUrl = nextUrl;
+            
+            setTimeout(() => {
+                connectWebSocket();
+            }, 1000);
+            
+            return; // Don't increment reconnect attempts for fallback URLs
+        }
+        
         if (appState.reconnectAttempts < appState.maxReconnectAttempts) {
             appState.reconnectAttempts++;
             console.log(`Reconnect attempt ${appState.reconnectAttempts}/${appState.maxReconnectAttempts} in ${appState.reconnectDelay}ms`);
